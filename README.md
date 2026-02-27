@@ -431,6 +431,8 @@ writeFileSync('report.csv', Buffer.from(csv));
 
 ## Error Handling
 
+The SDK throws `TMSApiError` for all non-2xx responses. For modern (RESTful) endpoints, `error.code` is the HTTP status code. For legacy endpoints, `error.code` may be a legacy error code (see below).
+
 ```typescript
 import { TMSClient, TMSApiError } from '@alphacargo/tms-sdk';
 
@@ -439,8 +441,7 @@ try {
 } catch (error) {
   if (error instanceof TMSApiError) {
     console.error('API Error:', error.message);
-    console.error('Error Code:', error.code);
-    console.error('HTTP Status:', error.statusCode);
+    console.error('HTTP Status:', error.statusCode); // e.g. 400, 404, 422, 500
     console.error('Details:', error.details);
   } else {
     throw error;
@@ -448,10 +449,24 @@ try {
 }
 ```
 
-### Error Codes
+### Common HTTP Status Codes
+
+| Status | Description |
+|--------|-------------|
+| `400` | Bad request / validation error |
+| `404` | Resource not found |
+| `409` | Conflict (e.g. duplicate waybill) |
+| `422` | Unprocessable entity |
+| `500` | Internal server error |
+
+### Legacy Error Codes
+
+Legacy error codes are only returned when using the legacy response format (enabled via the `X-Legacy-Response: true` header). They apply only to waybill creation, cancellation, label, and tracking endpoints.
 
 | Code | Description |
 |------|-------------|
+| `0` | Success |
+| `-1` | System error |
 | `1000` | Invalid parameters |
 | `1001` | Invalid merchant ID |
 | `1002` | Invalid signature |

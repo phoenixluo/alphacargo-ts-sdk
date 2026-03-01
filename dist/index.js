@@ -96,7 +96,7 @@ var HttpClient = class {
     const signedBody = {
       ...body,
       mchId: this.apiKey,
-      nonceStr: generateNonce(),
+      nonceStr: String(Date.now()),
       timestamp: getTimestamp()
     };
     signedBody.sign = await generateSignature(signedBody, this.apiSecret);

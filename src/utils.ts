@@ -111,7 +111,7 @@ export class HttpClient {
     const signedBody: Record<string, unknown> = {
       ...body,
       mchId: this.apiKey,
-      nonceStr: generateNonce(),
+      nonceStr: String(Date.now()),
       timestamp: getTimestamp(),
     };
     signedBody.sign = await generateSignature(signedBody, this.apiSecret);

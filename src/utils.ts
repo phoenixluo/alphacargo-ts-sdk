@@ -1,34 +1,56 @@
 import type { TMSClientConfig, TMSError } from './types';
 
 /**
- * Generate SHA-256 signature for API requests using Web Crypto API
+ * Canonicalize a JSON object into a deterministic string representation.
+ * Recursively sorts keys at all levels and removes whitespace.
+ * Must match the server-side canonicalizeJson implementation.
+ */
+export function canonicalizeJson(obj: unknown): string {
+  if (obj === null) return 'null';
+  if (obj === undefined) return 'undefined';
+  if (typeof obj === 'boolean') return obj.toString();
+  if (typeof obj === 'number') {
+    if (Number.isNaN(obj)) return 'null';
+    if (!Number.isFinite(obj)) return 'null';
+    return obj.toString();
+  }
+  if (typeof obj === 'string') return JSON.stringify(obj);
+
+  if (Array.isArray(obj)) {
+    const items = obj.map((item) => canonicalizeJson(item));
+    return `[${items.join(',')}]`;
+  }
+
+  if (typeof obj === 'object' && obj !== null) {
+    const record = obj as Record<string, unknown>;
+    const sortedKeys = Object.keys(record).sort();
+    const pairs = sortedKeys
+      .filter((key) => record[key] !== undefined)
+      .map((key) => `${JSON.stringify(key)}:${canonicalizeJson(record[key])}`);
+    return `{${pairs.join(',')}}`;
+  }
+
+  return JSON.stringify(obj);
+}
+
+/**
+ * Generate SHA-256 signature for API requests using Web Crypto API.
+ * Uses canonical JSON serialization of the payload (excluding the `sign` field)
+ * to match the server-side signature verification.
  */
 export async function generateSignature(
   params: Record<string, unknown>,
-  apiSecret: string
+  _apiSecret?: string
 ): Promise<string> {
-  // Filter out undefined/null values and the sign field
-  const filteredParams = Object.entries(params)
-    .filter(([key, value]) => key !== 'sign' && value !== undefined && value !== null)
-    .reduce((acc, [key, value]) => {
-      acc[key] = value;
-      return acc;
-    }, {} as Record<string, unknown>);
+  // Remove the sign field from the payload
+  const { sign, ...paramsWithoutSign } = params;
 
-  // Sort parameters alphabetically
-  const sortedKeys = Object.keys(filteredParams).sort();
-
-  // Build query string
-  const queryString = sortedKeys
-    .map((key) => `${key}=${filteredParams[key]}`)
-    .join('&');
-
-  // Append secret
-  const signString = `${queryString}&key=${apiSecret}`;
+  // Canonicalize the payload to produce a deterministic string
+  const stringToSign = canonicalizeJson(paramsWithoutSign);
 
   // Generate SHA256 hash using Web Crypto API
   const encoder = new TextEncoder();
-  const data = encoder.encode(signString);
+  const data = encoder.encode(stringToSign);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();

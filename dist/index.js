@@ -31,6 +31,7 @@ __export(index_exports, {
   TMSApiError: () => TMSApiError,
   TMSClient: () => TMSClient,
   Waybills: () => Waybills,
+  canonicalizeJson: () => canonicalizeJson,
   generateNonce: () => generateNonce,
   generateSignature: () => generateSignature,
   getTimestamp: () => getTimestamp
@@ -38,16 +39,33 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 
 // src/utils.ts
-async function generateSignature(params, apiSecret) {
-  const filteredParams = Object.entries(params).filter(([key, value]) => key !== "sign" && value !== void 0 && value !== null).reduce((acc, [key, value]) => {
-    acc[key] = value;
-    return acc;
-  }, {});
-  const sortedKeys = Object.keys(filteredParams).sort();
-  const queryString = sortedKeys.map((key) => `${key}=${filteredParams[key]}`).join("&");
-  const signString = `${queryString}&key=${apiSecret}`;
+function canonicalizeJson(obj) {
+  if (obj === null) return "null";
+  if (obj === void 0) return "undefined";
+  if (typeof obj === "boolean") return obj.toString();
+  if (typeof obj === "number") {
+    if (Number.isNaN(obj)) return "null";
+    if (!Number.isFinite(obj)) return "null";
+    return obj.toString();
+  }
+  if (typeof obj === "string") return JSON.stringify(obj);
+  if (Array.isArray(obj)) {
+    const items = obj.map((item) => canonicalizeJson(item));
+    return `[${items.join(",")}]`;
+  }
+  if (typeof obj === "object" && obj !== null) {
+    const record = obj;
+    const sortedKeys = Object.keys(record).sort();
+    const pairs = sortedKeys.filter((key) => record[key] !== void 0).map((key) => `${JSON.stringify(key)}:${canonicalizeJson(record[key])}`);
+    return `{${pairs.join(",")}}`;
+  }
+  return JSON.stringify(obj);
+}
+async function generateSignature(params, _apiSecret) {
+  const { sign, ...paramsWithoutSign } = params;
+  const stringToSign = canonicalizeJson(paramsWithoutSign);
   const encoder = new TextEncoder();
-  const data = encoder.encode(signString);
+  const data = encoder.encode(stringToSign);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
@@ -1608,6 +1626,7 @@ var TMSClient = class {
   TMSApiError,
   TMSClient,
   Waybills,
+  canonicalizeJson,
   generateNonce,
   generateSignature,
   getTimestamp

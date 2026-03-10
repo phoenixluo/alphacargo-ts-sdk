@@ -40,23 +40,37 @@ interface Parcel {
 interface CreateWaybillRequest {
     outTradeNo: string;
     owner: string;
-    senderName: string;
-    senderPhone: string;
-    senderCityName: string;
-    senderDistrictName: string;
-    senderPostCode: string;
-    senderAddress: string;
-    receiverName: string;
-    receiverPhone: string;
+    /** Sender name. Optional if route_id is provided (derived from route's first leg start unit) */
+    senderName?: string;
+    /** Sender phone. Optional if route_id is provided (derived from route's first leg start unit) */
+    senderPhone?: string;
+    /** Sender city. Optional if route_id is provided */
+    senderCityName?: string;
+    /** Sender district. Optional if route_id is provided */
+    senderDistrictName?: string;
+    /** Sender postal code. Optional if route_id is provided */
+    senderPostCode?: string;
+    /** Sender address. Optional if route_id is provided */
+    senderAddress?: string;
+    /** Receiver name. Optional if route_id is provided (derived from route's last leg end unit) */
+    receiverName?: string;
+    /** Receiver phone. Optional if route_id is provided */
+    receiverPhone?: string;
     receiverPhone2?: string;
-    receiverProvinceName: string;
-    receiverCityName: string;
-    receiverDistrictName: string;
-    receiverPostCode: string;
-    receiverAddress: string;
+    /** Receiver province. Optional if route_id is provided */
+    receiverProvinceName?: string;
+    /** Receiver city. Optional if route_id is provided */
+    receiverCityName?: string;
+    /** Receiver district. Optional if route_id is provided */
+    receiverDistrictName?: string;
+    /** Receiver postal code. Optional if route_id is provided */
+    receiverPostCode?: string;
+    /** Receiver address. Optional if route_id is provided */
+    receiverAddress?: string;
     parcelList: Parcel[];
     remark?: string;
     service_id?: string;
+    /** When provided, sender/receiver can be omitted - derived from route's first/last leg units */
     route_id?: string;
     additional_service_ids?: string[];
     sender_account?: {

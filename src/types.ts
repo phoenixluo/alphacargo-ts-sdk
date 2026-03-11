@@ -127,6 +127,123 @@ export interface GetLabelParams {
   packageId?: string;
 }
 
+// --- Waybill List / Details ---
+
+export interface WaybillListParams extends PaginationParams, DateRangeParams {
+  waybill_nos?: string;
+  statuses?: string;
+  tags?: string;
+  service_id?: string;
+  route_id?: string;
+  route_leg_id?: string;
+  contractor_id?: string;
+  subcontractor_id?: string;
+  latest_station_id?: string;
+  service_area_id?: string;
+}
+
+export interface WaybillAddress {
+  id?: string;
+  formatted_address?: string;
+  town?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  coordinates?: unknown;
+}
+
+export interface WaybillRecipient {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: WaybillAddress;
+}
+
+export interface WaybillPackageSummary {
+  id: string;
+  package_no: string;
+  external_package_no?: string;
+  status?: string;
+  weight?: number;
+  width?: number;
+  length?: number;
+  height?: number;
+  products?: unknown[];
+  metadata?: unknown;
+  sub_package_no?: string;
+  events?: unknown[];
+}
+
+export interface WaybillDelegation {
+  organization_id: string;
+  service_area_id?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  service_area_name?: string;
+  organization_name?: string;
+}
+
+export interface WaybillSummary {
+  id: string;
+  waybill_no: string;
+  external_waybill_no?: string;
+  status: string;
+  priority?: number;
+  recipient_id?: string;
+  recipient?: WaybillRecipient;
+  latest_station?: string;
+  latest_station_name?: string;
+  service_area_id?: string;
+  service_area_name?: string;
+  requires_signature?: boolean;
+  tags?: string[];
+  delegation_chain?: WaybillDelegation[];
+  picked_up_time?: string;
+  delivered_time?: string;
+  sorted_time?: string;
+  inbound_time?: string;
+  outbound_time?: string;
+  exception_time?: string;
+  returning_time?: string;
+  returned_time?: string;
+  created_at?: string;
+  updated_at?: string;
+  notes?: string;
+  packages?: WaybillPackageSummary[];
+}
+
+export interface WaybillDetails {
+  id: string;
+  waybill_no: string;
+  external_waybill_no?: string;
+  status: string;
+  priority?: number;
+  recipient?: WaybillRecipient;
+  packages?: WaybillPackageSummary[];
+  sender?: unknown;
+  sender_account?: unknown;
+  service?: unknown;
+  service_area?: unknown;
+  contractor_id?: string;
+  delegations?: WaybillDelegation[];
+  tags?: string[];
+  notes?: string;
+  requires_signature?: boolean;
+  weight?: number;
+  volume?: number;
+  volumetric_weight?: number;
+  route_id?: string;
+  latest_station?: string;
+  picked_up_time?: string;
+  delivered_time?: string;
+  created_at?: string;
+  updated_at?: string;
+  sub_waybills?: unknown[];
+  leg?: unknown[];
+}
+
 export interface AddPackageRequest {
   external_package_no: string;
   weight?: number;

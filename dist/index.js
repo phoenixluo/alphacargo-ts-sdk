@@ -223,6 +223,49 @@ var Waybills = class {
     this.http = http;
   }
   /**
+   * List waybills with optional filters and pagination
+   *
+   * @param params - Optional filter and pagination parameters
+   * @returns Paginated list of waybill summaries
+   *
+   * @example
+   * ```typescript
+   * // List all waybills
+   * const result = await client.waybills.list();
+   * console.log(result.data); // WaybillSummary[]
+   * console.log(result.total); // Total count
+   *
+   * // With filters
+   * const filtered = await client.waybills.list({
+   *   statuses: 'created,accepted',
+   *   page: 1,
+   *   pageSize: 50,
+   *   date_from: '2026-01-01',
+   *   route_id: 'route-uuid'
+   * });
+   * ```
+   */
+  async list(params) {
+    return this.http.getWithSignature("/waybills", params);
+  }
+  /**
+   * Get waybill details by waybill number
+   *
+   * @param waybillNo - Waybill number or external waybill number
+   * @returns Full waybill details including packages, recipient, delegations, etc.
+   *
+   * @example
+   * ```typescript
+   * const waybill = await client.waybills.get('TH24020001');
+   * console.log(waybill.status); // 'accepted'
+   * console.log(waybill.packages); // Package details
+   * console.log(waybill.recipient?.name); // 'John Doe'
+   * ```
+   */
+  async get(waybillNo) {
+    return this.http.getWithSignature(`/waybills/${encodeURIComponent(waybillNo)}`);
+  }
+  /**
    * Create a new waybill (shipping order)
    *
    * @param data - Waybill creation data

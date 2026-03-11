@@ -197,6 +197,7 @@ var Waybills = class {
    *
    * // With filters
    * const filtered = await client.waybills.list({
+   *   search: 'TH24020001,TH24020002',
    *   statuses: 'created,accepted',
    *   page: 1,
    *   pageSize: 50,

@@ -109,9 +109,12 @@ type LabelSize = 'a4' | 'a6' | '4x6';
 interface GetLabelParams {
     packageId?: string;
 }
-interface WaybillListParams extends PaginationParams, DateRangeParams {
-    waybill_nos?: string;
+interface WaybillListParams extends PaginationParams {
+    /** Waybill numbers to search for (space or comma-separated) */
+    search?: string;
+    /** Comma-separated list of statuses to filter by */
     statuses?: string;
+    /** Comma-separated list of tags to filter by */
     tags?: string;
     service_id?: string;
     route_id?: string;
@@ -120,6 +123,25 @@ interface WaybillListParams extends PaginationParams, DateRangeParams {
     subcontractor_id?: string;
     latest_station_id?: string;
     service_area_id?: string;
+    sender_account_code?: string;
+    waiting_for_assignment?: boolean;
+    date_from?: string;
+    date_to?: string;
+}
+/** Lightweight waybill summary returned by the list endpoint (query_waybills_optimized) */
+interface WaybillSummary {
+    id: string;
+    waybill_no: string;
+    external_waybill_no: string;
+    status: string;
+    latest_station_name: string;
+    service_area_name: string;
+    weight: number;
+    volume: number;
+    volumetric_weight: number;
+    max_length?: number | null;
+    max_width?: number | null;
+    max_height?: number | null;
 }
 interface WaybillAddress {
     id?: string;
@@ -159,34 +181,6 @@ interface WaybillDelegation {
     updated_at?: string;
     service_area_name?: string;
     organization_name?: string;
-}
-interface WaybillSummary {
-    id: string;
-    waybill_no: string;
-    external_waybill_no?: string;
-    status: string;
-    priority?: number;
-    recipient_id?: string;
-    recipient?: WaybillRecipient;
-    latest_station?: string;
-    latest_station_name?: string;
-    service_area_id?: string;
-    service_area_name?: string;
-    requires_signature?: boolean;
-    tags?: string[];
-    delegation_chain?: WaybillDelegation[];
-    picked_up_time?: string;
-    delivered_time?: string;
-    sorted_time?: string;
-    inbound_time?: string;
-    outbound_time?: string;
-    exception_time?: string;
-    returning_time?: string;
-    returned_time?: string;
-    created_at?: string;
-    updated_at?: string;
-    notes?: string;
-    packages?: WaybillPackageSummary[];
 }
 interface WaybillDetails {
     id: string;
@@ -942,6 +936,7 @@ declare class Waybills {
      *
      * // With filters
      * const filtered = await client.waybills.list({
+     *   search: 'TH24020001,TH24020002',
      *   statuses: 'created,accepted',
      *   page: 1,
      *   pageSize: 50,

@@ -49,6 +49,13 @@ export type {
   RecipientInput,
   ConsolidateWaybillsRequest,
   ConsolidateWaybillsResponse,
+  WaybillListParams,
+  WaybillSummary,
+  WaybillDetails,
+  WaybillAddress,
+  WaybillRecipient,
+  WaybillPackageSummary,
+  WaybillDelegation,
 
   // Billing
   BillingStatus,

@@ -169,10 +169,23 @@ var HttpClient = class {
     return this.request("DELETE", path, { body });
   }
   /**
-   * GET request with signature (for authenticated GET endpoints)
+   * GET request with signature (for authenticated GET endpoints).
+   *
+   * All parameter values are coerced to strings before signing because
+   * query-string parameters are always strings after URL parsing on the
+   * server. Without this the canonical JSON would differ (e.g. `"page":1`
+   * vs `"page":"1"`) and the signature would not match.
    */
   async getWithSignature(path, params) {
-    const signedParams = await this.signRequest(params ?? {});
+    const stringifiedParams = {};
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== void 0 && value !== null) {
+          stringifiedParams[key] = String(value);
+        }
+      }
+    }
+    const signedParams = await this.signRequest(stringifiedParams);
     return this.request("GET", path, { query: signedParams, sign: false });
   }
 };

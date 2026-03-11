@@ -257,10 +257,24 @@ export class HttpClient {
   }
 
   /**
-   * GET request with signature (for authenticated GET endpoints)
+   * GET request with signature (for authenticated GET endpoints).
+   *
+   * All parameter values are coerced to strings before signing because
+   * query-string parameters are always strings after URL parsing on the
+   * server. Without this the canonical JSON would differ (e.g. `"page":1`
+   * vs `"page":"1"`) and the signature would not match.
    */
   async getWithSignature<T>(path: string, params?: Record<string, unknown>): Promise<T> {
-    const signedParams = await this.signRequest(params ?? {});
+    // Convert all values to strings to match server-side query param parsing
+    const stringifiedParams: Record<string, unknown> = {};
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null) {
+          stringifiedParams[key] = String(value);
+        }
+      }
+    }
+    const signedParams = await this.signRequest(stringifiedParams);
     return this.request<T>('GET', path, { query: signedParams, sign: false });
   }
 }

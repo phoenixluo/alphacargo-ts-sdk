@@ -910,7 +910,12 @@ declare class HttpClient {
      */
     delete<T>(path: string, body?: Record<string, unknown>): Promise<T>;
     /**
-     * GET request with signature (for authenticated GET endpoints)
+     * GET request with signature (for authenticated GET endpoints).
+     *
+     * All parameter values are coerced to strings before signing because
+     * query-string parameters are always strings after URL parsing on the
+     * server. Without this the canonical JSON would differ (e.g. `"page":1`
+     * vs `"page":"1"`) and the signature would not match.
      */
     getWithSignature<T>(path: string, params?: Record<string, unknown>): Promise<T>;
 }

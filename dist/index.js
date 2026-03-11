@@ -64,11 +64,16 @@ function canonicalizeJson(obj) {
 async function generateSignature(params, _apiSecret) {
   const { sign, ...paramsWithoutSign } = params;
   const stringToSign = canonicalizeJson(paramsWithoutSign);
+  console.log("[TMS SDK] generateSignature - keys:", Object.keys(paramsWithoutSign).sort().join(", "));
+  console.log("[TMS SDK] generateSignature - stringToSign:", stringToSign);
+  console.log("[TMS SDK] generateSignature - apiSecret provided:", !!_apiSecret);
   const encoder = new TextEncoder();
   const data = encoder.encode(stringToSign);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+  const signature = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+  console.log("[TMS SDK] generateSignature - result:", signature);
+  return signature;
 }
 function generateNonce(length = 32) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -117,7 +122,10 @@ var HttpClient = class {
       nonceStr: String(Date.now()),
       timestamp: getTimestamp()
     };
+    console.log("[TMS SDK] signRequest - apiKey:", this.apiKey);
+    console.log("[TMS SDK] signRequest - body keys:", Object.keys(signedBody).sort().join(", "));
     signedBody.sign = await generateSignature(signedBody, this.apiSecret);
+    console.log("[TMS SDK] signRequest - final signed body:", JSON.stringify(signedBody, null, 2));
     return signedBody;
   }
   /**
@@ -141,8 +149,14 @@ var HttpClient = class {
     } else if (method === "POST" && sign) {
       fetchOptions.body = JSON.stringify(await this.signRequest({}));
     }
+    console.log(`[TMS SDK] ${method} ${url}`);
+    if (fetchOptions.body) {
+      console.log("[TMS SDK] Request body:", fetchOptions.body);
+    }
     const response = await fetch(url, fetchOptions);
     const data = await response.json();
+    console.log(`[TMS SDK] Response status: ${response.status}`);
+    console.log("[TMS SDK] Response body:", JSON.stringify(data, null, 2));
     if (!response.ok) {
       throw new TMSApiError(
         {

@@ -48,12 +48,18 @@ export async function generateSignature(
   // Canonicalize the payload to produce a deterministic string
   const stringToSign = canonicalizeJson(paramsWithoutSign);
 
+  console.log('[TMS SDK] generateSignature - keys:', Object.keys(paramsWithoutSign).sort().join(', '));
+  console.log('[TMS SDK] generateSignature - stringToSign:', stringToSign);
+  console.log('[TMS SDK] generateSignature - apiSecret provided:', !!_apiSecret);
+
   // Generate SHA256 hash using Web Crypto API
   const encoder = new TextEncoder();
   const data = encoder.encode(stringToSign);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+  const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+  console.log('[TMS SDK] generateSignature - result:', signature);
+  return signature;
 }
 
 /**
@@ -136,7 +142,10 @@ export class HttpClient {
       nonceStr: String(Date.now()),
       timestamp: getTimestamp(),
     };
+    console.log('[TMS SDK] signRequest - apiKey:', this.apiKey);
+    console.log('[TMS SDK] signRequest - body keys:', Object.keys(signedBody).sort().join(', '));
     signedBody.sign = await generateSignature(signedBody, this.apiSecret);
+    console.log('[TMS SDK] signRequest - final signed body:', JSON.stringify(signedBody, null, 2));
     return signedBody;
   }
 
@@ -174,8 +183,16 @@ export class HttpClient {
       fetchOptions.body = JSON.stringify(await this.signRequest({}));
     }
 
+    console.log(`[TMS SDK] ${method} ${url}`);
+    if (fetchOptions.body) {
+      console.log('[TMS SDK] Request body:', fetchOptions.body);
+    }
+
     const response = await fetch(url, fetchOptions);
     const data = await response.json() as Record<string, unknown>;
+
+    console.log(`[TMS SDK] Response status: ${response.status}`);
+    console.log('[TMS SDK] Response body:', JSON.stringify(data, null, 2));
 
     // Handle error responses
     if (!response.ok) {

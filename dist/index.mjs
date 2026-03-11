@@ -78,9 +78,8 @@ var HttpClient = class {
   async signRequest(body) {
     const signedBody = {
       ...body,
-      mchId: this.apiKey,
-      nonceStr: String(Date.now()),
-      timestamp: getTimestamp()
+      api_key: this.apiKey,
+      nonceStr: String(Date.now())
     };
     console.log("[TMS SDK] signRequest - apiKey:", this.apiKey);
     console.log("[TMS SDK] signRequest - body keys:", Object.keys(signedBody).sort().join(", "));

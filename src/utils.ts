@@ -138,9 +138,8 @@ export class HttpClient {
   private async signRequest(body: Record<string, unknown>): Promise<Record<string, unknown>> {
     const signedBody: Record<string, unknown> = {
       ...body,
-      mchId: this.apiKey,
+      api_key: this.apiKey,
       nonceStr: String(Date.now()),
-      timestamp: getTimestamp(),
     };
     console.log('[TMS SDK] signRequest - apiKey:', this.apiKey);
     console.log('[TMS SDK] signRequest - body keys:', Object.keys(signedBody).sort().join(', '));

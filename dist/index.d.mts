@@ -804,6 +804,27 @@ interface RevenueSummaryReport {
     }>;
     totals: Record<string, unknown>;
 }
+interface RegionDistrict {
+    name: string;
+    code: string;
+}
+interface RegionCity {
+    name: string;
+    districts: RegionDistrict[];
+}
+interface RegionProvince {
+    name: string;
+    cities: RegionCity[];
+}
+interface RegionHierarchy {
+    provinces: RegionProvince[];
+}
+interface ListRegionsParams {
+    /** ISO country code, e.g. "TH" */
+    country: string;
+    /** Optional postal code to narrow the hierarchy */
+    postal_code?: string;
+}
 interface TMSClientConfig {
     /**
      * Base URL of the TMS API
@@ -2098,6 +2119,65 @@ declare class Reports {
 }
 
 /**
+ * Regions resource for querying location hierarchy data
+ * (countries → provinces → cities → districts)
+ *
+ * Use this to build cascading address selectors in your UI.
+ *
+ * @example
+ * ```typescript
+ * // Get available countries
+ * const countries = await client.regions.listCountries();
+ * // => ['TH']
+ *
+ * // Get full hierarchy for a country
+ * const hierarchy = await client.regions.getHierarchy({ country: 'TH' });
+ * // => { provinces: [{ name: 'Bangkok', cities: [{ name: 'Phra Nakhon', districts: [...] }] }] }
+ *
+ * // Narrow to a specific postal code
+ * const filtered = await client.regions.getHierarchy({ country: 'TH', postal_code: '10110' });
+ * ```
+ */
+declare class Regions {
+    private readonly http;
+    constructor(http: HttpClient);
+    /**
+     * List all available countries that have region data
+     *
+     * @returns Array of ISO country codes
+     *
+     * @example
+     * ```typescript
+     * const countries = await client.regions.listCountries();
+     * console.log(countries); // ['TH']
+     * ```
+     */
+    listCountries(): Promise<string[]>;
+    /**
+     * Get the region hierarchy (provinces → cities → districts) for a country.
+     * Optionally filter by postal code to narrow results.
+     *
+     * @param params - Country code and optional postal code
+     * @returns Region hierarchy tree
+     *
+     * @example
+     * ```typescript
+     * const hierarchy = await client.regions.getHierarchy({ country: 'TH' });
+     * for (const province of hierarchy.provinces) {
+     *   console.log(province.name);
+     *   for (const city of province.cities) {
+     *     console.log(`  ${city.name}`);
+     *     for (const district of city.districts) {
+     *       console.log(`    ${district.name} (${district.code})`);
+     *     }
+     *   }
+     * }
+     * ```
+     */
+    getHierarchy(params: ListRegionsParams): Promise<RegionHierarchy>;
+}
+
+/**
  * TMS API Client
  *
  * The main entry point for interacting with the TMS API.
@@ -2161,6 +2241,10 @@ declare class TMSClient {
      */
     readonly reports: Reports;
     /**
+     * Regions resource for querying location hierarchy (provinces, cities, districts)
+     */
+    readonly regions: Regions;
+    /**
      * Create a new TMS API client
      *
      * @param config - Client configuration
@@ -2178,4 +2262,4 @@ declare class TMSClient {
     constructor(config: TMSClientConfig);
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListPaymentsParams, type ListRateCardsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp };

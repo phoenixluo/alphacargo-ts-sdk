@@ -9,6 +9,7 @@ import {
   BillingProfiles,
   DeliveryEvents,
   Reports,
+  Regions,
 } from './resources';
 import type { TMSClientConfig } from './types';
 
@@ -86,6 +87,11 @@ export class TMSClient {
   public readonly reports: Reports;
 
   /**
+   * Regions resource for querying location hierarchy (provinces, cities, districts)
+   */
+  public readonly regions: Regions;
+
+  /**
    * Create a new TMS API client
    *
    * @param config - Client configuration
@@ -123,5 +129,6 @@ export class TMSClient {
     this.billingProfiles = new BillingProfiles(this.http);
     this.deliveryEvents = new DeliveryEvents(this.http);
     this.reports = new Reports(this.http);
+    this.regions = new Regions(this.http);
   }
 }

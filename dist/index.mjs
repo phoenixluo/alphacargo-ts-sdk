@@ -1599,6 +1599,52 @@ var Reports = class {
   }
 };
 
+// src/resources/regions.ts
+var Regions = class {
+  constructor(http) {
+    this.http = http;
+  }
+  /**
+   * List all available countries that have region data
+   *
+   * @returns Array of ISO country codes
+   *
+   * @example
+   * ```typescript
+   * const countries = await client.regions.listCountries();
+   * console.log(countries); // ['TH']
+   * ```
+   */
+  async listCountries() {
+    const result = await this.http.get("/regions/countries");
+    return result.data;
+  }
+  /**
+   * Get the region hierarchy (provinces → cities → districts) for a country.
+   * Optionally filter by postal code to narrow results.
+   *
+   * @param params - Country code and optional postal code
+   * @returns Region hierarchy tree
+   *
+   * @example
+   * ```typescript
+   * const hierarchy = await client.regions.getHierarchy({ country: 'TH' });
+   * for (const province of hierarchy.provinces) {
+   *   console.log(province.name);
+   *   for (const city of province.cities) {
+   *     console.log(`  ${city.name}`);
+   *     for (const district of city.districts) {
+   *       console.log(`    ${district.name} (${district.code})`);
+   *     }
+   *   }
+   * }
+   * ```
+   */
+  async getHierarchy(params) {
+    return this.http.get("/regions", params);
+  }
+};
+
 // src/client.ts
 var TMSClient = class {
   /**
@@ -1636,6 +1682,7 @@ var TMSClient = class {
     this.billingProfiles = new BillingProfiles(this.http);
     this.deliveryEvents = new DeliveryEvents(this.http);
     this.reports = new Reports(this.http);
+    this.regions = new Regions(this.http);
   }
 };
 export {
@@ -1645,6 +1692,7 @@ export {
   Invoices,
   Payments,
   RateCards,
+  Regions,
   Reports,
   SenderAccounts,
   TMSApiError,

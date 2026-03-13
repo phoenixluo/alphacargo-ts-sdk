@@ -15,6 +15,7 @@ export {
   BillingProfiles,
   DeliveryEvents,
   Reports,
+  Regions,
 } from './resources';
 
 // Types
@@ -123,6 +124,13 @@ export type {
   BillingCycleRun,
   ListCycleRunsParams,
   TriggerCycleRequest,
+
+  // Regions
+  RegionDistrict,
+  RegionCity,
+  RegionProvince,
+  RegionHierarchy,
+  ListRegionsParams,
 
   // Delivery Events
   DeliveryEventType,

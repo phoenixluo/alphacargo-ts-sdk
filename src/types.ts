@@ -948,6 +948,36 @@ export interface RevenueSummaryReport {
 }
 
 // ============================================================================
+// Region / Location Types
+// ============================================================================
+
+export interface RegionDistrict {
+  name: string;
+  code: string;
+}
+
+export interface RegionCity {
+  name: string;
+  districts: RegionDistrict[];
+}
+
+export interface RegionProvince {
+  name: string;
+  cities: RegionCity[];
+}
+
+export interface RegionHierarchy {
+  provinces: RegionProvince[];
+}
+
+export interface ListRegionsParams {
+  /** ISO country code, e.g. "TH" */
+  country: string;
+  /** Optional postal code to narrow the hierarchy */
+  postal_code?: string;
+}
+
+// ============================================================================
 // SDK Configuration Types
 // ============================================================================
 

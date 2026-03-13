@@ -718,15 +718,6 @@ export interface ListSenderAccountRecipientsParams {
   is_active?: boolean;
 }
 
-/** @deprecated Use SenderAccountRecipient */
-export type SenderAccountAddress = SenderAccountRecipient;
-/** @deprecated Use CreateSenderAccountRecipientRequest */
-export type CreateSenderAccountAddressRequest = CreateSenderAccountRecipientRequest;
-/** @deprecated Use UpdateSenderAccountRecipientRequest */
-export type UpdateSenderAccountAddressRequest = UpdateSenderAccountRecipientRequest;
-/** @deprecated Use ListSenderAccountRecipientsParams */
-export type ListSenderAccountAddressesParams = ListSenderAccountRecipientsParams;
-
 // ============================================================================
 // Billing Profile Types
 // ============================================================================

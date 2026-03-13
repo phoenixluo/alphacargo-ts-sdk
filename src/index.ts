@@ -105,11 +105,11 @@ export type {
   CreateSenderAccountRequest,
   UpdateSenderAccountRequest,
   ListSenderAccountsParams,
+  SenderAccountRecipient,
+  CreateSenderAccountRecipientRequest,
+  UpdateSenderAccountRecipientRequest,
+  ListSenderAccountRecipientsParams,
   AddressType,
-  SenderAccountAddress,
-  CreateSenderAccountAddressRequest,
-  UpdateSenderAccountAddressRequest,
-  ListSenderAccountAddressesParams,
 
   // Billing Profile
   BillingType,

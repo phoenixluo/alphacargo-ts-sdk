@@ -205,30 +205,4 @@ export class SenderAccounts {
     );
   }
 
-  // ---- Deprecated address aliases ----
-
-  /** @deprecated Use listRecipients */
-  async listAddresses(id: string, params?: ListSenderAccountRecipientsParams) {
-    return this.listRecipients(id, params);
-  }
-
-  /** @deprecated Use getRecipient */
-  async getAddress(id: string, recipientId: string) {
-    return this.getRecipient(id, recipientId);
-  }
-
-  /** @deprecated Use createRecipient */
-  async createAddress(id: string, data: CreateSenderAccountRecipientRequest) {
-    return this.createRecipient(id, data);
-  }
-
-  /** @deprecated Use updateRecipient */
-  async updateAddress(id: string, recipientId: string, data: UpdateSenderAccountRecipientRequest) {
-    return this.updateRecipient(id, recipientId, data);
-  }
-
-  /** @deprecated Use deleteRecipient */
-  async deleteAddress(id: string, recipientId: string) {
-    return this.deleteRecipient(id, recipientId);
-  }
 }

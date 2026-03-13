@@ -1287,27 +1287,6 @@ var SenderAccounts = class {
       `/sender-accounts/${encodeURIComponent(id)}/recipients/${encodeURIComponent(recipientId)}`
     );
   }
-  // ---- Deprecated address aliases ----
-  /** @deprecated Use listRecipients */
-  async listAddresses(id, params) {
-    return this.listRecipients(id, params);
-  }
-  /** @deprecated Use getRecipient */
-  async getAddress(id, recipientId) {
-    return this.getRecipient(id, recipientId);
-  }
-  /** @deprecated Use createRecipient */
-  async createAddress(id, data) {
-    return this.createRecipient(id, data);
-  }
-  /** @deprecated Use updateRecipient */
-  async updateAddress(id, recipientId, data) {
-    return this.updateRecipient(id, recipientId, data);
-  }
-  /** @deprecated Use deleteRecipient */
-  async deleteAddress(id, recipientId) {
-    return this.deleteRecipient(id, recipientId);
-  }
 };
 
 // src/resources/billing-profiles.ts

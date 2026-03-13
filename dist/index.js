@@ -183,7 +183,7 @@ var HttpClient = class {
    * GET request
    */
   async get(path, query) {
-    return this.request("GET", path, { query, sign: false });
+    return this.getWithSignature(path, query);
   }
   /**
    * POST request

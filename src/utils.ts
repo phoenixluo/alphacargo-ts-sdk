@@ -225,7 +225,7 @@ export class HttpClient {
    * GET request
    */
   async get<T>(path: string, query?: Record<string, unknown>): Promise<T> {
-    return this.request<T>('GET', path, { query, sign: false });
+    return this.getWithSignature<T>(path, query);
   }
 
   /**

@@ -334,7 +334,7 @@ interface BillingEmailRequest {
     };
     billing_ids?: string[];
 }
-type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'partial' | 'overdue' | 'canceled';
+type InvoiceStatus = 'draft' | 'issued' | 'payment_processing' | 'partially_paid' | 'paid' | 'overdue' | 'canceled' | 'disputed';
 interface InvoiceLineItem {
     id: string;
     billing_id: string;
@@ -585,55 +585,58 @@ interface ListSenderAccountsParams {
     offset?: number;
 }
 type AddressType = 'pickup' | 'return' | 'billing' | 'warehouse';
-interface SenderAccountAddress {
+interface SenderAccountRecipient {
     id: string;
-    street_line: string;
-    block_floor_room?: string;
-    city?: string;
-    state?: string;
-    town?: string;
-    zip_code?: string;
-    country?: string;
-    address_type: AddressType;
+    sender_account_id: string;
+    recipient_id: string;
+    recipient?: {
+        id: string;
+        name: string;
+        phone?: string;
+        email?: string;
+        address?: {
+            id: string;
+            original_address?: string;
+            formatted_address?: string;
+            street_line?: string;
+            block_floor_room?: string;
+            city?: string;
+            state?: string;
+            town?: string;
+            zip_code?: string;
+            country?: string;
+        } | null;
+    } | null;
     is_default: boolean;
+    is_active: boolean;
     label?: string;
     metadata?: Record<string, unknown>;
-    is_active?: boolean;
     created_at?: string;
+    updated_at?: string;
 }
-interface CreateSenderAccountAddressRequest {
-    street_line: string;
-    block_floor_room?: string;
-    city?: string;
-    state?: string;
-    town?: string;
-    zip_code?: string;
-    country?: string;
-    address_type?: AddressType;
+interface CreateSenderAccountRecipientRequest {
+    recipient_id: string;
     is_default?: boolean;
     label?: string;
     metadata?: Record<string, unknown>;
 }
-interface UpdateSenderAccountAddressRequest {
-    address?: {
-        street_line?: string;
-        block_floor_room?: string;
-        city?: string;
-        state?: string;
-        town?: string;
-        zip_code?: string;
-        country?: string;
-    };
-    address_type?: AddressType;
+interface UpdateSenderAccountRecipientRequest {
     is_default?: boolean;
     is_active?: boolean;
     label?: string;
     metadata?: Record<string, unknown>;
 }
-interface ListSenderAccountAddressesParams {
-    address_type?: AddressType;
+interface ListSenderAccountRecipientsParams {
     is_active?: boolean;
 }
+/** @deprecated Use SenderAccountRecipient */
+type SenderAccountAddress = SenderAccountRecipient;
+/** @deprecated Use CreateSenderAccountRecipientRequest */
+type CreateSenderAccountAddressRequest = CreateSenderAccountRecipientRequest;
+/** @deprecated Use UpdateSenderAccountRecipientRequest */
+type UpdateSenderAccountAddressRequest = UpdateSenderAccountRecipientRequest;
+/** @deprecated Use ListSenderAccountRecipientsParams */
+type ListSenderAccountAddressesParams = ListSenderAccountRecipientsParams;
 type BillingType = 'consolidated' | 'transactional';
 type BillingCycle = 'weekly' | 'biweekly' | 'monthly' | 'custom';
 type PaymentTerms = 'due_on_receipt' | 'net_7' | 'net_15' | 'net_30' | 'net_45' | 'net_60' | 'net_90' | 'custom';
@@ -1774,72 +1777,77 @@ declare class SenderAccounts {
      */
     delete(id: string): Promise<void>;
     /**
-     * List addresses linked to a sender account
+     * List recipients linked to a sender account
      *
      * @param id - Sender account ID
-     * @param params - Optional filters (address_type, is_active)
-     * @returns Array of addresses
+     * @param params - Optional filters (is_active)
+     * @returns Array of sender account recipients
      *
      * @example
      * ```typescript
-     * const addresses = await client.senderAccounts.listAddresses('account-uuid', {
-     *   address_type: 'pickup'
+     * const recipients = await client.senderAccounts.listRecipients('account-uuid', {
+     *   is_active: true
      * });
      * ```
      */
-    listAddresses(id: string, params?: ListSenderAccountAddressesParams): Promise<SenderAccountAddress[]>;
+    listRecipients(id: string, params?: ListSenderAccountRecipientsParams): Promise<SenderAccountRecipient[]>;
     /**
-     * Get a single address linked to a sender account
+     * Get a single recipient linked to a sender account
      *
      * @param id - Sender account ID
-     * @param addressId - Address ID
-     * @returns Address details
+     * @param recipientId - Recipient ID
+     * @returns Sender account recipient details
      */
-    getAddress(id: string, addressId: string): Promise<SenderAccountAddress>;
+    getRecipient(id: string, recipientId: string): Promise<SenderAccountRecipient>;
     /**
-     * Add a new address to a sender account
+     * Link a recipient to a sender account
      *
      * @param id - Sender account ID
-     * @param data - Address creation data
-     * @returns Created address
+     * @param data - Recipient link data (recipient_id + junction metadata)
+     * @returns Created sender account recipient
      *
      * @example
      * ```typescript
-     * const address = await client.senderAccounts.createAddress('account-uuid', {
-     *   street_line: '123 Sukhumvit Road',
-     *   city: 'Bangkok',
-     *   state: 'Bangkok',
-     *   zip_code: '10110',
-     *   address_type: 'pickup',
+     * const recipient = await client.senderAccounts.createRecipient('account-uuid', {
+     *   recipient_id: 'recipient-uuid',
      *   is_default: true
      * });
      * ```
      */
-    createAddress(id: string, data: CreateSenderAccountAddressRequest): Promise<SenderAccountAddress>;
+    createRecipient(id: string, data: CreateSenderAccountRecipientRequest): Promise<SenderAccountRecipient>;
     /**
-     * Update an address linked to a sender account
+     * Update a recipient link on a sender account
      *
      * @param id - Sender account ID
-     * @param addressId - Address ID
-     * @param data - Fields to update
-     * @returns Updated address
+     * @param recipientId - Recipient ID
+     * @param data - Junction fields to update (is_default, label, etc.)
+     * @returns Updated sender account recipient
      *
      * @example
      * ```typescript
-     * await client.senderAccounts.updateAddress('account-uuid', 'address-uuid', {
-     *   address: { street_line: '456 New Road' },
+     * await client.senderAccounts.updateRecipient('account-uuid', 'recipient-uuid', {
      *   is_default: true
      * });
      * ```
      */
-    updateAddress(id: string, addressId: string, data: UpdateSenderAccountAddressRequest): Promise<SenderAccountAddress>;
+    updateRecipient(id: string, recipientId: string, data: UpdateSenderAccountRecipientRequest): Promise<SenderAccountRecipient>;
     /**
-     * Remove an address from a sender account
+     * Remove a recipient from a sender account
      *
      * @param id - Sender account ID
-     * @param addressId - Address ID
+     * @param recipientId - Recipient ID
      */
-    deleteAddress(id: string, addressId: string): Promise<void>;
+    deleteRecipient(id: string, recipientId: string): Promise<void>;
+    /** @deprecated Use listRecipients */
+    listAddresses(id: string, params?: ListSenderAccountRecipientsParams): Promise<SenderAccountRecipient[]>;
+    /** @deprecated Use getRecipient */
+    getAddress(id: string, recipientId: string): Promise<SenderAccountRecipient>;
+    /** @deprecated Use createRecipient */
+    createAddress(id: string, data: CreateSenderAccountRecipientRequest): Promise<SenderAccountRecipient>;
+    /** @deprecated Use updateRecipient */
+    updateAddress(id: string, recipientId: string, data: UpdateSenderAccountRecipientRequest): Promise<SenderAccountRecipient>;
+    /** @deprecated Use deleteRecipient */
+    deleteAddress(id: string, recipientId: string): Promise<void>;
 }
 
 /**

@@ -1160,97 +1160,113 @@ var SenderAccounts = class {
   async delete(id) {
     await this.http.delete(`/sender-accounts/${encodeURIComponent(id)}`);
   }
-  // ---- Addresses ----
+  // ---- Recipients ----
   /**
-   * List addresses linked to a sender account
+   * List recipients linked to a sender account
    *
    * @param id - Sender account ID
-   * @param params - Optional filters (address_type, is_active)
-   * @returns Array of addresses
+   * @param params - Optional filters (is_active)
+   * @returns Array of sender account recipients
    *
    * @example
    * ```typescript
-   * const addresses = await client.senderAccounts.listAddresses('account-uuid', {
-   *   address_type: 'pickup'
+   * const recipients = await client.senderAccounts.listRecipients('account-uuid', {
+   *   is_active: true
    * });
    * ```
    */
-  async listAddresses(id, params) {
+  async listRecipients(id, params) {
     const result = await this.http.get(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses`,
+      `/sender-accounts/${encodeURIComponent(id)}/recipients`,
       params
     );
     return result.data;
   }
   /**
-   * Get a single address linked to a sender account
+   * Get a single recipient linked to a sender account
    *
    * @param id - Sender account ID
-   * @param addressId - Address ID
-   * @returns Address details
+   * @param recipientId - Recipient ID
+   * @returns Sender account recipient details
    */
-  async getAddress(id, addressId) {
+  async getRecipient(id, recipientId) {
     return this.http.get(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses/${encodeURIComponent(addressId)}`
+      `/sender-accounts/${encodeURIComponent(id)}/recipients/${encodeURIComponent(recipientId)}`
     );
   }
   /**
-   * Add a new address to a sender account
+   * Link a recipient to a sender account
    *
    * @param id - Sender account ID
-   * @param data - Address creation data
-   * @returns Created address
+   * @param data - Recipient link data (recipient_id + junction metadata)
+   * @returns Created sender account recipient
    *
    * @example
    * ```typescript
-   * const address = await client.senderAccounts.createAddress('account-uuid', {
-   *   street_line: '123 Sukhumvit Road',
-   *   city: 'Bangkok',
-   *   state: 'Bangkok',
-   *   zip_code: '10110',
-   *   address_type: 'pickup',
+   * const recipient = await client.senderAccounts.createRecipient('account-uuid', {
+   *   recipient_id: 'recipient-uuid',
    *   is_default: true
    * });
    * ```
    */
-  async createAddress(id, data) {
+  async createRecipient(id, data) {
     return this.http.post(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses`,
+      `/sender-accounts/${encodeURIComponent(id)}/recipients`,
       data
     );
   }
   /**
-   * Update an address linked to a sender account
+   * Update a recipient link on a sender account
    *
    * @param id - Sender account ID
-   * @param addressId - Address ID
-   * @param data - Fields to update
-   * @returns Updated address
+   * @param recipientId - Recipient ID
+   * @param data - Junction fields to update (is_default, label, etc.)
+   * @returns Updated sender account recipient
    *
    * @example
    * ```typescript
-   * await client.senderAccounts.updateAddress('account-uuid', 'address-uuid', {
-   *   address: { street_line: '456 New Road' },
+   * await client.senderAccounts.updateRecipient('account-uuid', 'recipient-uuid', {
    *   is_default: true
    * });
    * ```
    */
-  async updateAddress(id, addressId, data) {
+  async updateRecipient(id, recipientId, data) {
     return this.http.put(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses/${encodeURIComponent(addressId)}`,
+      `/sender-accounts/${encodeURIComponent(id)}/recipients/${encodeURIComponent(recipientId)}`,
       data
     );
   }
   /**
-   * Remove an address from a sender account
+   * Remove a recipient from a sender account
    *
    * @param id - Sender account ID
-   * @param addressId - Address ID
+   * @param recipientId - Recipient ID
    */
-  async deleteAddress(id, addressId) {
+  async deleteRecipient(id, recipientId) {
     await this.http.delete(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses/${encodeURIComponent(addressId)}`
+      `/sender-accounts/${encodeURIComponent(id)}/recipients/${encodeURIComponent(recipientId)}`
     );
+  }
+  // ---- Deprecated address aliases ----
+  /** @deprecated Use listRecipients */
+  async listAddresses(id, params) {
+    return this.listRecipients(id, params);
+  }
+  /** @deprecated Use getRecipient */
+  async getAddress(id, recipientId) {
+    return this.getRecipient(id, recipientId);
+  }
+  /** @deprecated Use createRecipient */
+  async createAddress(id, data) {
+    return this.createRecipient(id, data);
+  }
+  /** @deprecated Use updateRecipient */
+  async updateAddress(id, recipientId, data) {
+    return this.updateRecipient(id, recipientId, data);
+  }
+  /** @deprecated Use deleteRecipient */
+  async deleteAddress(id, recipientId) {
+    return this.deleteRecipient(id, recipientId);
   }
 };
 

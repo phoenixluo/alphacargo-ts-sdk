@@ -4,10 +4,10 @@ import type {
   CreateSenderAccountRequest,
   UpdateSenderAccountRequest,
   ListSenderAccountsParams,
-  SenderAccountAddress,
-  CreateSenderAccountAddressRequest,
-  UpdateSenderAccountAddressRequest,
-  ListSenderAccountAddressesParams,
+  SenderAccountRecipient,
+  CreateSenderAccountRecipientRequest,
+  UpdateSenderAccountRecipientRequest,
+  ListSenderAccountRecipientsParams,
 } from '../types';
 
 interface ListSenderAccountsResponse {
@@ -112,101 +112,123 @@ export class SenderAccounts {
     await this.http.delete(`/sender-accounts/${encodeURIComponent(id)}`);
   }
 
-  // ---- Addresses ----
+  // ---- Recipients ----
 
   /**
-   * List addresses linked to a sender account
+   * List recipients linked to a sender account
    *
    * @param id - Sender account ID
-   * @param params - Optional filters (address_type, is_active)
-   * @returns Array of addresses
+   * @param params - Optional filters (is_active)
+   * @returns Array of sender account recipients
    *
    * @example
    * ```typescript
-   * const addresses = await client.senderAccounts.listAddresses('account-uuid', {
-   *   address_type: 'pickup'
+   * const recipients = await client.senderAccounts.listRecipients('account-uuid', {
+   *   is_active: true
    * });
    * ```
    */
-  async listAddresses(id: string, params?: ListSenderAccountAddressesParams): Promise<SenderAccountAddress[]> {
-    const result = await this.http.get<{ data: SenderAccountAddress[] }>(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses`,
+  async listRecipients(id: string, params?: ListSenderAccountRecipientsParams): Promise<SenderAccountRecipient[]> {
+    const result = await this.http.get<{ data: SenderAccountRecipient[] }>(
+      `/sender-accounts/${encodeURIComponent(id)}/recipients`,
       params as Record<string, unknown>
     );
     return result.data;
   }
 
   /**
-   * Get a single address linked to a sender account
+   * Get a single recipient linked to a sender account
    *
    * @param id - Sender account ID
-   * @param addressId - Address ID
-   * @returns Address details
+   * @param recipientId - Recipient ID
+   * @returns Sender account recipient details
    */
-  async getAddress(id: string, addressId: string): Promise<SenderAccountAddress> {
-    return this.http.get<SenderAccountAddress>(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses/${encodeURIComponent(addressId)}`
+  async getRecipient(id: string, recipientId: string): Promise<SenderAccountRecipient> {
+    return this.http.get<SenderAccountRecipient>(
+      `/sender-accounts/${encodeURIComponent(id)}/recipients/${encodeURIComponent(recipientId)}`
     );
   }
 
   /**
-   * Add a new address to a sender account
+   * Link a recipient to a sender account
    *
    * @param id - Sender account ID
-   * @param data - Address creation data
-   * @returns Created address
+   * @param data - Recipient link data (recipient_id + junction metadata)
+   * @returns Created sender account recipient
    *
    * @example
    * ```typescript
-   * const address = await client.senderAccounts.createAddress('account-uuid', {
-   *   street_line: '123 Sukhumvit Road',
-   *   city: 'Bangkok',
-   *   state: 'Bangkok',
-   *   zip_code: '10110',
-   *   address_type: 'pickup',
+   * const recipient = await client.senderAccounts.createRecipient('account-uuid', {
+   *   recipient_id: 'recipient-uuid',
    *   is_default: true
    * });
    * ```
    */
-  async createAddress(id: string, data: CreateSenderAccountAddressRequest): Promise<SenderAccountAddress> {
-    return this.http.post<SenderAccountAddress>(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses`,
+  async createRecipient(id: string, data: CreateSenderAccountRecipientRequest): Promise<SenderAccountRecipient> {
+    return this.http.post<SenderAccountRecipient>(
+      `/sender-accounts/${encodeURIComponent(id)}/recipients`,
       data as unknown as Record<string, unknown>
     );
   }
 
   /**
-   * Update an address linked to a sender account
+   * Update a recipient link on a sender account
    *
    * @param id - Sender account ID
-   * @param addressId - Address ID
-   * @param data - Fields to update
-   * @returns Updated address
+   * @param recipientId - Recipient ID
+   * @param data - Junction fields to update (is_default, label, etc.)
+   * @returns Updated sender account recipient
    *
    * @example
    * ```typescript
-   * await client.senderAccounts.updateAddress('account-uuid', 'address-uuid', {
-   *   address: { street_line: '456 New Road' },
+   * await client.senderAccounts.updateRecipient('account-uuid', 'recipient-uuid', {
    *   is_default: true
    * });
    * ```
    */
-  async updateAddress(id: string, addressId: string, data: UpdateSenderAccountAddressRequest): Promise<SenderAccountAddress> {
-    return this.http.put<SenderAccountAddress>(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses/${encodeURIComponent(addressId)}`,
+  async updateRecipient(id: string, recipientId: string, data: UpdateSenderAccountRecipientRequest): Promise<SenderAccountRecipient> {
+    return this.http.put<SenderAccountRecipient>(
+      `/sender-accounts/${encodeURIComponent(id)}/recipients/${encodeURIComponent(recipientId)}`,
       data as unknown as Record<string, unknown>
     );
   }
 
   /**
-   * Remove an address from a sender account
+   * Remove a recipient from a sender account
    *
    * @param id - Sender account ID
-   * @param addressId - Address ID
+   * @param recipientId - Recipient ID
    */
-  async deleteAddress(id: string, addressId: string): Promise<void> {
+  async deleteRecipient(id: string, recipientId: string): Promise<void> {
     await this.http.delete(
-      `/sender-accounts/${encodeURIComponent(id)}/addresses/${encodeURIComponent(addressId)}`
+      `/sender-accounts/${encodeURIComponent(id)}/recipients/${encodeURIComponent(recipientId)}`
     );
+  }
+
+  // ---- Deprecated address aliases ----
+
+  /** @deprecated Use listRecipients */
+  async listAddresses(id: string, params?: ListSenderAccountRecipientsParams) {
+    return this.listRecipients(id, params);
+  }
+
+  /** @deprecated Use getRecipient */
+  async getAddress(id: string, recipientId: string) {
+    return this.getRecipient(id, recipientId);
+  }
+
+  /** @deprecated Use createRecipient */
+  async createAddress(id: string, data: CreateSenderAccountRecipientRequest) {
+    return this.createRecipient(id, data);
+  }
+
+  /** @deprecated Use updateRecipient */
+  async updateAddress(id: string, recipientId: string, data: UpdateSenderAccountRecipientRequest) {
+    return this.updateRecipient(id, recipientId, data);
+  }
+
+  /** @deprecated Use deleteRecipient */
+  async deleteAddress(id: string, recipientId: string) {
+    return this.deleteRecipient(id, recipientId);
   }
 }

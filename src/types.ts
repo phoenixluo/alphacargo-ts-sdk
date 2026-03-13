@@ -380,7 +380,7 @@ export interface BillingEmailRequest {
 // Invoice Types
 // ============================================================================
 
-export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'partial' | 'overdue' | 'canceled';
+export type InvoiceStatus = 'draft' | 'issued' | 'payment_processing' | 'partially_paid' | 'paid' | 'overdue' | 'canceled' | 'disputed';
 
 export interface InvoiceLineItem {
   id: string;
@@ -666,62 +666,66 @@ export interface ListSenderAccountsParams {
   offset?: number;
 }
 
-// --- Sender Account Addresses ---
+// --- Sender Account Recipients ---
 
 export type AddressType = 'pickup' | 'return' | 'billing' | 'warehouse';
 
-export interface SenderAccountAddress {
+export interface SenderAccountRecipient {
   id: string;
-  street_line: string;
-  block_floor_room?: string;
-  city?: string;
-  state?: string;
-  town?: string;
-  zip_code?: string;
-  country?: string;
-  address_type: AddressType;
+  sender_account_id: string;
+  recipient_id: string;
+  recipient?: {
+    id: string;
+    name: string;
+    phone?: string;
+    email?: string;
+    address?: {
+      id: string;
+      original_address?: string;
+      formatted_address?: string;
+      street_line?: string;
+      block_floor_room?: string;
+      city?: string;
+      state?: string;
+      town?: string;
+      zip_code?: string;
+      country?: string;
+    } | null;
+  } | null;
   is_default: boolean;
+  is_active: boolean;
   label?: string;
   metadata?: Record<string, unknown>;
-  is_active?: boolean;
   created_at?: string;
+  updated_at?: string;
 }
 
-export interface CreateSenderAccountAddressRequest {
-  street_line: string;
-  block_floor_room?: string;
-  city?: string;
-  state?: string;
-  town?: string;
-  zip_code?: string;
-  country?: string;
-  address_type?: AddressType;
+export interface CreateSenderAccountRecipientRequest {
+  recipient_id: string;
   is_default?: boolean;
   label?: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface UpdateSenderAccountAddressRequest {
-  address?: {
-    street_line?: string;
-    block_floor_room?: string;
-    city?: string;
-    state?: string;
-    town?: string;
-    zip_code?: string;
-    country?: string;
-  };
-  address_type?: AddressType;
+export interface UpdateSenderAccountRecipientRequest {
   is_default?: boolean;
   is_active?: boolean;
   label?: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface ListSenderAccountAddressesParams {
-  address_type?: AddressType;
+export interface ListSenderAccountRecipientsParams {
   is_active?: boolean;
 }
+
+/** @deprecated Use SenderAccountRecipient */
+export type SenderAccountAddress = SenderAccountRecipient;
+/** @deprecated Use CreateSenderAccountRecipientRequest */
+export type CreateSenderAccountAddressRequest = CreateSenderAccountRecipientRequest;
+/** @deprecated Use UpdateSenderAccountRecipientRequest */
+export type UpdateSenderAccountAddressRequest = UpdateSenderAccountRecipientRequest;
+/** @deprecated Use ListSenderAccountRecipientsParams */
+export type ListSenderAccountAddressesParams = ListSenderAccountRecipientsParams;
 
 // ============================================================================
 // Billing Profile Types

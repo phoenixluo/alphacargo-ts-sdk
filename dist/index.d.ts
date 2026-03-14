@@ -627,12 +627,12 @@ interface CreateSenderAccountRecipientAddress {
 interface CreateSenderAccountRecipientRequest {
     /** Recipient name (required) */
     name: string;
-    /** Recipient phone number */
-    phone?: string;
+    /** Recipient phone number (required) */
+    phone: string;
     /** Recipient email */
     email?: string;
-    /** Recipient address */
-    address?: CreateSenderAccountRecipientAddress;
+    /** Recipient address (required) */
+    address: CreateSenderAccountRecipientAddress;
     /** Whether this is the default recipient for the sender account */
     is_default?: boolean;
     /** Human-friendly label */

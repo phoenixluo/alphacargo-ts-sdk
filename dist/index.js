@@ -143,10 +143,11 @@ var HttpClient = class {
       headers,
       signal: AbortSignal.timeout(this.timeout)
     };
-    if (options?.body && (method === "POST" || method === "PUT" || method === "PATCH")) {
+    const bodyMethods = ["POST", "PUT", "PATCH", "DELETE"];
+    if (options?.body && bodyMethods.includes(method)) {
       const body = sign ? await this.signRequest(options.body) : options.body;
       fetchOptions.body = JSON.stringify(body);
-    } else if (method === "POST" && sign) {
+    } else if (bodyMethods.includes(method) && sign) {
       fetchOptions.body = JSON.stringify(await this.signRequest({}));
     }
     console.log(`[TMS SDK] ${method} ${url}`);

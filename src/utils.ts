@@ -174,11 +174,12 @@ export class HttpClient {
       signal: AbortSignal.timeout(this.timeout),
     };
 
-    if (options?.body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+    const bodyMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+    if (options?.body && bodyMethods.includes(method)) {
       const body = sign ? await this.signRequest(options.body) : options.body;
       fetchOptions.body = JSON.stringify(body);
-    } else if (method === 'POST' && sign) {
-      // For POST without body, still add signature params
+    } else if (bodyMethods.includes(method) && sign) {
+      // For body methods without body, still add signature params
       fetchOptions.body = JSON.stringify(await this.signRequest({}));
     }
 

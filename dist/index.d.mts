@@ -614,16 +614,48 @@ interface SenderAccountRecipient {
     created_at?: string;
     updated_at?: string;
 }
+interface CreateSenderAccountRecipientAddress {
+    original_address?: string;
+    street_line?: string;
+    block_floor_room?: string;
+    city?: string;
+    state?: string;
+    town?: string;
+    zip_code?: string;
+    country?: string;
+}
 interface CreateSenderAccountRecipientRequest {
-    recipient_id: string;
+    /** Recipient name (required) */
+    name: string;
+    /** Recipient phone number */
+    phone?: string;
+    /** Recipient email */
+    email?: string;
+    /** Recipient address */
+    address?: CreateSenderAccountRecipientAddress;
+    /** Whether this is the default recipient for the sender account */
     is_default?: boolean;
+    /** Human-friendly label */
     label?: string;
+    /** Arbitrary key-value pairs */
     metadata?: Record<string, unknown>;
 }
 interface UpdateSenderAccountRecipientRequest {
+    /** Recipient name */
+    name?: string;
+    /** Recipient phone number */
+    phone?: string;
+    /** Recipient email */
+    email?: string;
+    /** Recipient address */
+    address?: CreateSenderAccountRecipientAddress;
+    /** Whether this is the default recipient for the sender account */
     is_default?: boolean;
+    /** Whether the recipient link is active */
     is_active?: boolean;
+    /** Human-friendly label */
     label?: string;
+    /** Arbitrary key-value pairs */
     metadata?: Record<string, unknown>;
 }
 interface ListSenderAccountRecipientsParams {
@@ -1816,14 +1848,23 @@ declare class SenderAccounts {
      * Link a recipient to a sender account
      *
      * @param id - Sender account ID
-     * @param data - Recipient link data (recipient_id + junction metadata)
+     * @param data - Recipient data (name, phone, email, address, junction metadata)
      * @returns Created sender account recipient
      *
      * @example
      * ```typescript
      * const recipient = await client.senderAccounts.createRecipient('account-uuid', {
-     *   recipient_id: 'recipient-uuid',
-     *   is_default: true
+     *   name: 'John Doe',
+     *   phone: '0812345678',
+     *   email: 'john@example.com',
+     *   address: {
+     *     street_line: '123 Main St',
+     *     city: 'Bangkok',
+     *     state: 'Bangkok',
+     *     zip_code: '10110',
+     *     country: 'TH',
+     *   },
+     *   is_default: true,
      * });
      * ```
      */
@@ -2262,4 +2303,4 @@ declare class TMSClient {
     constructor(config: TMSClientConfig);
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp };

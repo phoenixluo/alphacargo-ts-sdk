@@ -1198,14 +1198,23 @@ var SenderAccounts = class {
    * Link a recipient to a sender account
    *
    * @param id - Sender account ID
-   * @param data - Recipient link data (recipient_id + junction metadata)
+   * @param data - Recipient data (name, phone, email, address, junction metadata)
    * @returns Created sender account recipient
    *
    * @example
    * ```typescript
    * const recipient = await client.senderAccounts.createRecipient('account-uuid', {
-   *   recipient_id: 'recipient-uuid',
-   *   is_default: true
+   *   name: 'John Doe',
+   *   phone: '0812345678',
+   *   email: 'john@example.com',
+   *   address: {
+   *     street_line: '123 Main St',
+   *     city: 'Bangkok',
+   *     state: 'Bangkok',
+   *     zip_code: '10110',
+   *     country: 'TH',
+   *   },
+   *   is_default: true,
    * });
    * ```
    */

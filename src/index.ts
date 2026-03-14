@@ -107,6 +107,7 @@ export type {
   UpdateSenderAccountRequest,
   ListSenderAccountsParams,
   SenderAccountRecipient,
+  CreateSenderAccountRecipientAddress,
   CreateSenderAccountRecipientRequest,
   UpdateSenderAccountRecipientRequest,
   ListSenderAccountRecipientsParams,

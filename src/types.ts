@@ -700,17 +700,50 @@ export interface SenderAccountRecipient {
   updated_at?: string;
 }
 
+export interface CreateSenderAccountRecipientAddress {
+  original_address?: string;
+  street_line?: string;
+  block_floor_room?: string;
+  city?: string;
+  state?: string;
+  town?: string;
+  zip_code?: string;
+  country?: string;
+}
+
 export interface CreateSenderAccountRecipientRequest {
-  recipient_id: string;
+  /** Recipient name (required) */
+  name: string;
+  /** Recipient phone number */
+  phone?: string;
+  /** Recipient email */
+  email?: string;
+  /** Recipient address */
+  address?: CreateSenderAccountRecipientAddress;
+  /** Whether this is the default recipient for the sender account */
   is_default?: boolean;
+  /** Human-friendly label */
   label?: string;
+  /** Arbitrary key-value pairs */
   metadata?: Record<string, unknown>;
 }
 
 export interface UpdateSenderAccountRecipientRequest {
+  /** Recipient name */
+  name?: string;
+  /** Recipient phone number */
+  phone?: string;
+  /** Recipient email */
+  email?: string;
+  /** Recipient address */
+  address?: CreateSenderAccountRecipientAddress;
+  /** Whether this is the default recipient for the sender account */
   is_default?: boolean;
+  /** Whether the recipient link is active */
   is_active?: boolean;
+  /** Human-friendly label */
   label?: string;
+  /** Arbitrary key-value pairs */
   metadata?: Record<string, unknown>;
 }
 

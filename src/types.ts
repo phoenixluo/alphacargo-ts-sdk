@@ -173,6 +173,7 @@ export interface WaybillSummary {
   weight: number;
   volume: number;
   volumetric_weight: number;
+  sender_account_code?: string | null;
   max_length?: number | null;
   max_width?: number | null;
   max_height?: number | null;

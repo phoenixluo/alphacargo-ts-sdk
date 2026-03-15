@@ -69,6 +69,8 @@ interface CreateWaybillRequest {
     receiverAddress?: string;
     parcelList: Parcel[];
     remark?: string;
+    /** Optional external reference number (e.g., customer PO number) */
+    reference_no?: string;
     service_id?: string;
     /** When provided, sender/receiver can be omitted - derived from route's first/last leg units */
     route_id?: string;
@@ -133,6 +135,7 @@ interface WaybillSummary {
     id: string;
     waybill_no: string;
     external_waybill_no: string;
+    reference_no?: string | null;
     status: string;
     latest_station_name: string;
     service_area_name: string;
@@ -186,6 +189,7 @@ interface WaybillDetails {
     id: string;
     waybill_no: string;
     external_waybill_no?: string;
+    reference_no?: string | null;
     status: string;
     priority?: number;
     recipient?: WaybillRecipient;

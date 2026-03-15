@@ -263,7 +263,11 @@ var Waybills = class {
    * ```
    */
   async list(params) {
-    return this.http.getWithSignature("/waybills", params);
+    const query = { ...params };
+    if (params && "reference_no" in params && params.reference_no === null) {
+      query.reference_no = "";
+    }
+    return this.http.getWithSignature("/waybills", query);
   }
   /**
    * Get waybill details by waybill number

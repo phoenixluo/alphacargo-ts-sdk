@@ -133,6 +133,8 @@ interface WaybillListParams extends PaginationParams {
     latest_station_id?: string;
     service_area_id?: string;
     sender_account_code?: string;
+    /** Filter by reference number. Pass a string for exact match, null to find waybills with no reference_no, or omit to skip filtering. */
+    reference_no?: string | null;
     waiting_for_assignment?: boolean;
     date_from?: string;
     date_to?: string;

@@ -50,7 +50,12 @@ export class Waybills {
    * ```
    */
   async list(params?: WaybillListParams): Promise<PaginatedResponse<WaybillSummary>> {
-    return this.http.getWithSignature<PaginatedResponse<WaybillSummary>>('/waybills', params as Record<string, unknown>);
+    const query: Record<string, unknown> = { ...params };
+    // Tri-state: null means "filter where reference_no IS NULL", sent as empty string
+    if (params && 'reference_no' in params && params.reference_no === null) {
+      query.reference_no = '';
+    }
+    return this.http.getWithSignature<PaginatedResponse<WaybillSummary>>('/waybills', query);
   }
 
   /**

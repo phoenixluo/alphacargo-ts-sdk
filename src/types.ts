@@ -343,12 +343,18 @@ export interface BillingRecord {
   name: string;
   rate_card_id: string;
   contractor_id?: string;
+  sender_account_id?: string;
+  organization_id?: string;
+  waybill_id?: string;
+  delivery_id?: string;
+  invoice_id?: string;
+  billing_profile_id?: string;
   quantity: number;
   unit_price: number;
-  total_amount: number;
+  amount: number;
   status: BillingStatus;
-  waybill_id?: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface CreateBillingRequest {

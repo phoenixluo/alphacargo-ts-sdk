@@ -46,7 +46,7 @@ export class Billings {
    * @example
    * ```typescript
    * const billing = await client.billings.get('uuid-here');
-   * console.log(billing.total_amount);
+   * console.log(billing.amount);
    * ```
    */
   async get(id: string): Promise<BillingRecord> {

@@ -137,7 +137,8 @@ var HttpClient = class {
         response.status
       );
     }
-    return data.data !== void 0 ? data.data : data;
+    const isLegacyEnvelope = data.success !== void 0 && data.code !== void 0;
+    return isLegacyEnvelope && data.data !== void 0 ? data.data : data;
   }
   /**
    * GET request

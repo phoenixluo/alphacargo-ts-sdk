@@ -218,8 +218,10 @@ export class HttpClient {
       );
     }
 
-    // Return data field if present (legacy format) or full response
-    return (data.data !== undefined ? data.data : data) as T;
+    // Unwrap legacy envelope ({ code, success, data }) but pass through
+    // direct RESTful responses (e.g. PaginatedResult which has its own .data field)
+    const isLegacyEnvelope = data.success !== undefined && data.code !== undefined;
+    return (isLegacyEnvelope && data.data !== undefined ? data.data : data) as T;
   }
 
   /**

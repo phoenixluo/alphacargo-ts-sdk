@@ -104,6 +104,14 @@ export interface CreateWaybillResponse {
   packages: WaybillPackage[];
 }
 
+export interface UpdateWaybillRequest {
+  reference_no?: string | null;
+  notes?: string | null;
+  tags?: string[] | null;
+  priority?: number | null;
+  requires_signature?: boolean | null;
+}
+
 export interface TrackingRoute {
   state: string;
   stateText: string;
@@ -240,6 +248,7 @@ export interface WaybillDetails {
   updated_at?: string;
   sub_waybills?: unknown[];
   leg?: unknown[];
+  billings?: unknown[];
 }
 
 export interface AddPackageRequest {

@@ -333,6 +333,25 @@ var Waybills = class {
     return this.http.delete(`/waybills/${encodeURIComponent(waybillNo)}`);
   }
   /**
+   * Update waybill fields
+   *
+   * @param waybillNo - Waybill number or external waybill number
+   * @param data - Fields to update
+   * @returns Updated waybill details
+   *
+   * @example
+   * ```typescript
+   * const waybill = await client.waybills.update('TH24020001', {
+   *   reference_no: 'PO-12345',
+   *   notes: 'Handle with care',
+   *   tags: ['fragile', 'priority'],
+   * });
+   * ```
+   */
+  async update(waybillNo, data) {
+    return this.http.patch(`/waybills/${encodeURIComponent(waybillNo)}`, data);
+  }
+  /**
    * Get tracking events for a waybill
    *
    * @param waybillNo - Waybill number

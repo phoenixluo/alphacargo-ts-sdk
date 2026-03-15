@@ -90,6 +90,13 @@ interface CreateWaybillResponse {
     status: string;
     packages: WaybillPackage[];
 }
+interface UpdateWaybillRequest {
+    reference_no?: string | null;
+    notes?: string | null;
+    tags?: string[] | null;
+    priority?: number | null;
+    requires_signature?: boolean | null;
+}
 interface TrackingRoute {
     state: string;
     stateText: string;
@@ -214,6 +221,7 @@ interface WaybillDetails {
     updated_at?: string;
     sub_waybills?: unknown[];
     leg?: unknown[];
+    billings?: unknown[];
 }
 interface AddPackageRequest {
     external_package_no: string;
@@ -1066,6 +1074,23 @@ declare class Waybills {
     cancel(waybillNo: string): Promise<{
         message: string;
     }>;
+    /**
+     * Update waybill fields
+     *
+     * @param waybillNo - Waybill number or external waybill number
+     * @param data - Fields to update
+     * @returns Updated waybill details
+     *
+     * @example
+     * ```typescript
+     * const waybill = await client.waybills.update('TH24020001', {
+     *   reference_no: 'PO-12345',
+     *   notes: 'Handle with care',
+     *   tags: ['fragile', 'priority'],
+     * });
+     * ```
+     */
+    update(waybillNo: string, data: UpdateWaybillRequest): Promise<WaybillDetails>;
     /**
      * Get tracking events for a waybill
      *

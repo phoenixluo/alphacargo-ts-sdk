@@ -2,6 +2,7 @@ import { HttpClient } from '../utils';
 import type {
   CreateWaybillRequest,
   CreateWaybillResponse,
+  UpdateWaybillRequest,
   WaybillEvents,
   GetLabelParams,
   AddPackageRequest,
@@ -120,6 +121,26 @@ export class Waybills {
    */
   async cancel(waybillNo: string): Promise<{ message: string }> {
     return this.http.delete<{ message: string }>(`/waybills/${encodeURIComponent(waybillNo)}`);
+  }
+
+  /**
+   * Update waybill fields
+   *
+   * @param waybillNo - Waybill number or external waybill number
+   * @param data - Fields to update
+   * @returns Updated waybill details
+   *
+   * @example
+   * ```typescript
+   * const waybill = await client.waybills.update('TH24020001', {
+   *   reference_no: 'PO-12345',
+   *   notes: 'Handle with care',
+   *   tags: ['fragile', 'priority'],
+   * });
+   * ```
+   */
+  async update(waybillNo: string, data: UpdateWaybillRequest): Promise<WaybillDetails> {
+    return this.http.patch<WaybillDetails>(`/waybills/${encodeURIComponent(waybillNo)}`, data as unknown as Record<string, unknown>);
   }
 
   /**

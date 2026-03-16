@@ -142,6 +142,8 @@ interface WaybillListParams extends PaginationParams {
     waiting_for_assignment?: boolean;
     date_from?: string;
     date_to?: string;
+    /** Set to "1" to include `is_paid` on each waybill (true when any billing with status "paid" exists) */
+    payment?: string;
 }
 /** Lightweight waybill summary returned by the list endpoint (query_waybills_optimized) */
 interface WaybillSummary {
@@ -161,6 +163,8 @@ interface WaybillSummary {
     max_length?: number | null;
     max_width?: number | null;
     max_height?: number | null;
+    /** Present when `payment=1` is requested. True if any billing with status "paid" exists for this waybill. */
+    is_paid?: boolean;
 }
 interface WaybillAddress {
     id?: string;

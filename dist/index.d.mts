@@ -291,7 +291,6 @@ interface RecipientInput {
 }
 interface ConsolidateWaybillsRequest {
     waybill_ids: string[];
-    external_waybill_no: string;
     /** Optional — if omitted, resolved from the route's last leg end unit */
     recipient?: RecipientInput;
     service_id: string;

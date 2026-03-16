@@ -90,6 +90,10 @@ export interface CreateWaybillRequest {
   route_id?: string;
   additional_service_ids?: string[];
   sender_account?: { code?: string; id?: string };
+  /** Estimated total weight (kg) for billing when actual values are unavailable (e.g. consolidation) */
+  estimatedWeight?: number;
+  /** Estimated total volume (m³) for billing when actual values are unavailable (e.g. consolidation) */
+  estimatedVolume?: number;
 }
 
 export interface WaybillPackage {
@@ -173,6 +177,8 @@ export interface WaybillSummary {
   weight: number;
   volume: number;
   volumetric_weight: number;
+  estimated_weight?: number | null;
+  estimated_volume?: number | null;
   sender_account_code?: string | null;
   max_length?: number | null;
   max_width?: number | null;
@@ -243,6 +249,8 @@ export interface WaybillDetails {
   weight?: number;
   volume?: number;
   volumetric_weight?: number;
+  estimated_weight?: number | null;
+  estimated_volume?: number | null;
   route_id?: string;
   latest_station?: string;
   picked_up_time?: string;
@@ -319,8 +327,8 @@ export interface RecipientInput {
 export interface ConsolidateWaybillsRequest {
   waybill_ids: string[];
   external_waybill_no: string;
-  sender: { id: string };
-  recipient: RecipientInput;
+  /** Optional — if omitted, resolved from the route's last leg end unit */
+  recipient?: RecipientInput;
   service_id: string;
   route_id?: string;
   notes?: string;
@@ -608,6 +616,7 @@ export interface RateCard {
   id: string;
   name: string;
   unit_price: number;
+  billing_unit: 'kg' | 'cbm' | 'per_waybill' | 'per_package';
   service_id: string;
   service?: { id: string; name: string };
   route_id?: string;
@@ -620,6 +629,7 @@ export interface RateCard {
 export interface CreateRateCardRequest {
   name: string;
   unit_price: number;
+  billing_unit: 'kg' | 'cbm' | 'per_waybill' | 'per_package';
   service_id: string;
   route_id?: string;
   contractor_id?: string;
@@ -630,6 +640,7 @@ export interface CreateRateCardRequest {
 export interface UpdateRateCardRequest {
   name?: string;
   unit_price?: number;
+  billing_unit?: 'kg' | 'cbm' | 'per_waybill' | 'per_package';
   service_id?: string;
   route_id?: string;
   contractor_id?: string;

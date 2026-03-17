@@ -10,6 +10,7 @@ import {
   DeliveryEvents,
   Reports,
   Regions,
+  WaybillRoutes,
 } from './resources';
 import type { TMSClientConfig } from './types';
 
@@ -92,6 +93,11 @@ export class TMSClient {
   public readonly regions: Regions;
 
   /**
+   * WaybillRoutes resource for querying waybill routes
+   */
+  public readonly waybillRoutes: WaybillRoutes;
+
+  /**
    * Create a new TMS API client
    *
    * @param config - Client configuration
@@ -130,5 +136,6 @@ export class TMSClient {
     this.deliveryEvents = new DeliveryEvents(this.http);
     this.reports = new Reports(this.http);
     this.regions = new Regions(this.http);
+    this.waybillRoutes = new WaybillRoutes(this.http);
   }
 }

@@ -771,6 +771,54 @@ interface ListCycleRunsParams extends PaginationParams {
 interface TriggerCycleRequest {
     as_of_date?: string;
 }
+interface WaybillRouteUnitAddress {
+    id: string;
+    original_address: string;
+    formatted_address: string | null;
+    street_line: string | null;
+    block_floor_room: string | null;
+    city: string | null;
+    town: string | null;
+    state: string | null;
+    country: string | null;
+    zip_code: string | null;
+    coordinates: unknown | null;
+}
+interface WaybillRouteUnit {
+    id: string;
+    code: string;
+    name: string;
+    type: string;
+    phone: string | null;
+    email: string | null;
+    address: WaybillRouteUnitAddress | null;
+}
+interface WaybillRouteLeg {
+    id: string;
+    code: string;
+    name: string;
+    start_unit_id: string;
+    end_unit_id: string | null;
+    start_unit: WaybillRouteUnit | null;
+    end_unit: WaybillRouteUnit | null;
+    consolidation: string;
+    sequence_number: number;
+}
+interface WaybillRoute {
+    id: string;
+    code: string;
+    name: string;
+    description: string | null;
+    organization_id: string;
+    created_at: string;
+    updated_at: string;
+    legs?: WaybillRouteLeg[];
+}
+interface ListWaybillRoutesParams {
+    search?: string;
+    page?: number;
+    pageSize?: number;
+}
 type DeliveryEventType = 'draft' | 'created' | 'picked_up' | 'accepted' | 'delivering' | 'delivered' | 'failed' | 'exception' | 'canceled' | 'rescheduled' | 'returning' | 'returned' | 'in_transit_sorted' | 'in_transit_hub_inbound' | 'in_transit_hub_outbound';
 interface DeliveryEvent {
     id: string;
@@ -2269,6 +2317,39 @@ declare class Regions {
 }
 
 /**
+ * WaybillRoutes resource for querying waybill routes
+ */
+declare class WaybillRoutes {
+    private readonly http;
+    constructor(http: HttpClient);
+    /**
+     * List waybill routes with optional filters
+     *
+     * @param params - Query parameters for filtering
+     * @returns Array of waybill routes
+     *
+     * @example
+     * ```typescript
+     * const routes = await client.waybillRoutes.list({ search: 'BKK' });
+     * ```
+     */
+    list(params?: ListWaybillRoutesParams): Promise<WaybillRoute[]>;
+    /**
+     * Get a single waybill route by ID (includes legs)
+     *
+     * @param id - Waybill route ID
+     * @returns Waybill route with legs
+     *
+     * @example
+     * ```typescript
+     * const route = await client.waybillRoutes.get('route-uuid');
+     * console.log(route.legs);
+     * ```
+     */
+    get(id: string): Promise<WaybillRoute>;
+}
+
+/**
  * TMS API Client
  *
  * The main entry point for interacting with the TMS API.
@@ -2336,6 +2417,10 @@ declare class TMSClient {
      */
     readonly regions: Regions;
     /**
+     * WaybillRoutes resource for querying waybill routes
+     */
+    readonly waybillRoutes: WaybillRoutes;
+    /**
      * Create a new TMS API client
      *
      * @param config - Client configuration
@@ -2353,4 +2438,4 @@ declare class TMSClient {
     constructor(config: TMSClientConfig);
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWaybillRoutesParams, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp };

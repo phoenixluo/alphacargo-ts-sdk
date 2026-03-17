@@ -886,6 +886,63 @@ export interface TriggerCycleRequest {
 }
 
 // ============================================================================
+// Waybill Route Types
+// ============================================================================
+
+export interface WaybillRouteUnitAddress {
+  id: string;
+  original_address: string;
+  formatted_address: string | null;
+  street_line: string | null;
+  block_floor_room: string | null;
+  city: string | null;
+  town: string | null;
+  state: string | null;
+  country: string | null;
+  zip_code: string | null;
+  coordinates: unknown | null;
+}
+
+export interface WaybillRouteUnit {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  phone: string | null;
+  email: string | null;
+  address: WaybillRouteUnitAddress | null;
+}
+
+export interface WaybillRouteLeg {
+  id: string;
+  code: string;
+  name: string;
+  start_unit_id: string;
+  end_unit_id: string | null;
+  start_unit: WaybillRouteUnit | null;
+  end_unit: WaybillRouteUnit | null;
+  consolidation: string;
+  sequence_number: number;
+}
+
+export interface WaybillRoute {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
+  legs?: WaybillRouteLeg[];
+}
+
+export interface ListWaybillRoutesParams {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+// ============================================================================
 // Delivery Event Types
 // ============================================================================
 

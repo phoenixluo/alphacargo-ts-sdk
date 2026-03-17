@@ -16,6 +16,7 @@ export {
   DeliveryEvents,
   Reports,
   Regions,
+  WaybillRoutes,
 } from './resources';
 
 // Types
@@ -125,6 +126,13 @@ export type {
   BillingCycleRun,
   ListCycleRunsParams,
   TriggerCycleRequest,
+
+  // Waybill Routes
+  WaybillRouteUnitAddress,
+  WaybillRouteUnit,
+  WaybillRoute,
+  WaybillRouteLeg,
+  ListWaybillRoutesParams,
 
   // Regions
   RegionDistrict,

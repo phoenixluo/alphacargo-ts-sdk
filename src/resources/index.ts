@@ -8,3 +8,4 @@ export { BillingProfiles } from './billing-profiles';
 export { DeliveryEvents } from './delivery-events';
 export { Reports } from './reports';
 export { Regions } from './regions';
+export { WaybillRoutes } from './waybill-routes';

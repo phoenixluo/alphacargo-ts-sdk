@@ -31,6 +31,7 @@ __export(index_exports, {
   SenderAccounts: () => SenderAccounts,
   TMSApiError: () => TMSApiError,
   TMSClient: () => TMSClient,
+  WaybillRoutes: () => WaybillRoutes,
   Waybills: () => Waybills,
   canonicalizeJson: () => canonicalizeJson,
   generateNonce: () => generateNonce,
@@ -1720,6 +1721,42 @@ var Regions = class {
   }
 };
 
+// src/resources/waybill-routes.ts
+var WaybillRoutes = class {
+  constructor(http) {
+    this.http = http;
+  }
+  /**
+   * List waybill routes with optional filters
+   *
+   * @param params - Query parameters for filtering
+   * @returns Array of waybill routes
+   *
+   * @example
+   * ```typescript
+   * const routes = await client.waybillRoutes.list({ search: 'BKK' });
+   * ```
+   */
+  async list(params) {
+    return this.http.get("/waybill-routes", params);
+  }
+  /**
+   * Get a single waybill route by ID (includes legs)
+   *
+   * @param id - Waybill route ID
+   * @returns Waybill route with legs
+   *
+   * @example
+   * ```typescript
+   * const route = await client.waybillRoutes.get('route-uuid');
+   * console.log(route.legs);
+   * ```
+   */
+  async get(id) {
+    return this.http.get(`/waybill-routes/${encodeURIComponent(id)}`);
+  }
+};
+
 // src/client.ts
 var TMSClient = class {
   /**
@@ -1758,6 +1795,7 @@ var TMSClient = class {
     this.deliveryEvents = new DeliveryEvents(this.http);
     this.reports = new Reports(this.http);
     this.regions = new Regions(this.http);
+    this.waybillRoutes = new WaybillRoutes(this.http);
   }
 };
 // Annotate the CommonJS export names for ESM import in node:
@@ -1773,6 +1811,7 @@ var TMSClient = class {
   SenderAccounts,
   TMSApiError,
   TMSClient,
+  WaybillRoutes,
   Waybills,
   canonicalizeJson,
   generateNonce,

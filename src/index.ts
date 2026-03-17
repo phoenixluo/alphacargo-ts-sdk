@@ -131,6 +131,7 @@ export type {
   WaybillRouteUnitAddress,
   WaybillRouteUnit,
   WaybillRoute,
+  WaybillRouteWithLegs,
   WaybillRouteLeg,
   ListWaybillRoutesParams,
 

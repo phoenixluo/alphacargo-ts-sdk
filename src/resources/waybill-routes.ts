@@ -1,5 +1,5 @@
 import { HttpClient } from '../utils';
-import type { WaybillRoute, ListWaybillRoutesParams } from '../types';
+import type { WaybillRoute, WaybillRouteWithLegs, ListWaybillRoutesParams } from '../types';
 
 /**
  * WaybillRoutes resource for querying waybill routes
@@ -34,7 +34,7 @@ export class WaybillRoutes {
    * console.log(route.legs);
    * ```
    */
-  async get(id: string): Promise<WaybillRoute> {
-    return this.http.get<WaybillRoute>(`/waybill-routes/${encodeURIComponent(id)}`);
+  async get(id: string): Promise<WaybillRouteWithLegs> {
+    return this.http.get<WaybillRouteWithLegs>(`/waybill-routes/${encodeURIComponent(id)}`);
   }
 }

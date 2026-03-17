@@ -936,6 +936,10 @@ export interface WaybillRoute {
   legs?: WaybillRouteLeg[];
 }
 
+export interface WaybillRouteWithLegs extends WaybillRoute {
+  legs: WaybillRouteLeg[];
+}
+
 export interface ListWaybillRoutesParams {
   search?: string;
   page?: number;

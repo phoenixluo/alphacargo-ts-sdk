@@ -84,6 +84,11 @@ interface CreateWaybillRequest {
     /** Estimated total volume (m³) for billing when actual values are unavailable (e.g. consolidation) */
     estimatedVolume?: number;
 }
+type WaybillOverwriteBehavior = 'overwrite' | 'return_existing' | 'reject' | 'return_if_accepted';
+interface CreateWaybillOptions {
+    /** How to handle an existing waybill with the same outTradeNo */
+    overwrite?: WaybillOverwriteBehavior;
+}
 interface WaybillPackage {
     package_no: string;
     external_package_no: string;
@@ -1132,7 +1137,7 @@ declare class Waybills {
      * console.log(waybill.waybill_no); // 'TH24020001'
      * ```
      */
-    create(data: CreateWaybillRequest): Promise<CreateWaybillResponse>;
+    create(data: CreateWaybillRequest, options?: CreateWaybillOptions): Promise<CreateWaybillResponse>;
     /**
      * Cancel a waybill
      *

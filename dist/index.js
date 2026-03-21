@@ -321,8 +321,12 @@ var Waybills = class {
    * console.log(waybill.waybill_no); // 'TH24020001'
    * ```
    */
-  async create(data) {
-    return this.http.post("/waybills", data);
+  async create(data, options) {
+    const query = options?.overwrite ? { overwrite: options.overwrite } : void 0;
+    return this.http.request("POST", "/waybills", {
+      body: data,
+      query
+    });
   }
   /**
    * Cancel a waybill

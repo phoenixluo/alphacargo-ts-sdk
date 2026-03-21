@@ -96,6 +96,13 @@ export interface CreateWaybillRequest {
   estimatedVolume?: number;
 }
 
+export type WaybillOverwriteBehavior = 'overwrite' | 'return_existing' | 'reject' | 'return_if_accepted';
+
+export interface CreateWaybillOptions {
+  /** How to handle an existing waybill with the same outTradeNo */
+  overwrite?: WaybillOverwriteBehavior;
+}
+
 export interface WaybillPackage {
   package_no: string;
   external_package_no: string;

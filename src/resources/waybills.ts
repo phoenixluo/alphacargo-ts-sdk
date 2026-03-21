@@ -2,6 +2,7 @@ import { HttpClient } from '../utils';
 import type {
   CreateWaybillRequest,
   CreateWaybillResponse,
+  CreateWaybillOptions,
   UpdateWaybillRequest,
   WaybillEvents,
   GetLabelParams,
@@ -110,8 +111,12 @@ export class Waybills {
    * console.log(waybill.waybill_no); // 'TH24020001'
    * ```
    */
-  async create(data: CreateWaybillRequest): Promise<CreateWaybillResponse> {
-    return this.http.post<CreateWaybillResponse>('/waybills', data as unknown as Record<string, unknown>);
+  async create(data: CreateWaybillRequest, options?: CreateWaybillOptions): Promise<CreateWaybillResponse> {
+    const query = options?.overwrite ? { overwrite: options.overwrite } : undefined;
+    return this.http.request<CreateWaybillResponse>('POST', '/waybills', {
+      body: data as unknown as Record<string, unknown>,
+      query,
+    });
   }
 
   /**

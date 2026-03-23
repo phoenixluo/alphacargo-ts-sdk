@@ -36,7 +36,8 @@ __export(index_exports, {
   canonicalizeJson: () => canonicalizeJson,
   generateNonce: () => generateNonce,
   generateSignature: () => generateSignature,
-  getTimestamp: () => getTimestamp
+  getTimestamp: () => getTimestamp,
+  verifyWebhookSignature: () => verifyWebhookSignature
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -76,6 +77,28 @@ async function generateSignature(params, _apiSecret) {
   const signature = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
   console.log("[TMS SDK] generateSignature - result:", signature);
   return signature;
+}
+async function verifyWebhookSignature(body, options) {
+  const { sign, ...payloadWithoutSign } = body;
+  if (!sign || typeof sign !== "string") {
+    return { valid: false, error: "Missing signature" };
+  }
+  const nonceStr = body.nonceStr;
+  if (!nonceStr || typeof nonceStr !== "string") {
+    return { valid: false, error: "Missing nonceStr" };
+  }
+  const maxAge = options?.maxAgeMs ?? 5 * 60 * 1e3;
+  if (maxAge > 0) {
+    const timestamp = parseInt(nonceStr, 10) || 0;
+    if (Math.abs(Date.now() - timestamp) > maxAge) {
+      return { valid: false, error: "Request expired" };
+    }
+  }
+  const expectedSign = await generateSignature(payloadWithoutSign);
+  if (sign !== expectedSign) {
+    return { valid: false, error: "Invalid signature" };
+  }
+  return { valid: true };
 }
 function generateNonce(length = 32) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -1820,5 +1843,6 @@ var TMSClient = class {
   canonicalizeJson,
   generateNonce,
   generateSignature,
-  getTimestamp
+  getTimestamp,
+  verifyWebhookSignature
 });

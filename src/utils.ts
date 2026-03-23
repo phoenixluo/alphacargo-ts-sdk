@@ -63,6 +63,62 @@ export async function generateSignature(
 }
 
 /**
+ * Verify a webhook signature from TMS.
+ * Takes the parsed JSON body of the webhook request and validates the `sign` field.
+ *
+ * @param body - The parsed JSON body of the webhook request
+ * @param options - Optional verification settings
+ * @param options.maxAgeMs - Maximum age of the request in milliseconds (default: 5 minutes). Set to 0 to disable.
+ * @returns Object with `valid` boolean and optional `error` message
+ *
+ * @example
+ * ```typescript
+ * import { verifyWebhookSignature } from '@alphacargo/tms-sdk';
+ *
+ * app.post('/webhooks/delivery-events', async (req, res) => {
+ *   const result = await verifyWebhookSignature(req.body);
+ *   if (!result.valid) {
+ *     return res.status(401).json({ error: result.error });
+ *   }
+ *   // Process the verified webhook...
+ *   res.json({ success: true });
+ * });
+ * ```
+ */
+export async function verifyWebhookSignature(
+  body: Record<string, unknown>,
+  options?: { maxAgeMs?: number }
+): Promise<{ valid: boolean; error?: string }> {
+  const { sign, ...payloadWithoutSign } = body;
+
+  if (!sign || typeof sign !== 'string') {
+    return { valid: false, error: 'Missing signature' };
+  }
+
+  const nonceStr = body.nonceStr;
+  if (!nonceStr || typeof nonceStr !== 'string') {
+    return { valid: false, error: 'Missing nonceStr' };
+  }
+
+  // Check timestamp freshness
+  const maxAge = options?.maxAgeMs ?? 5 * 60 * 1000;
+  if (maxAge > 0) {
+    const timestamp = parseInt(nonceStr, 10) || 0;
+    if (Math.abs(Date.now() - timestamp) > maxAge) {
+      return { valid: false, error: 'Request expired' };
+    }
+  }
+
+  const expectedSign = await generateSignature(payloadWithoutSign);
+
+  if (sign !== expectedSign) {
+    return { valid: false, error: 'Invalid signature' };
+  }
+
+  return { valid: true };
+}
+
+/**
  * Generate a random nonce string
  */
 export function generateNonce(length: number = 32): string {

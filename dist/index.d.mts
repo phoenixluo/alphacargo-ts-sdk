@@ -168,6 +168,8 @@ interface WaybillSummary {
     max_length?: number | null;
     max_width?: number | null;
     max_height?: number | null;
+    /** Sum of non-canceled billing amounts for this waybill. */
+    billing_total?: number;
     /** Present when `payment=1` is requested. True if any billing with status "paid" exists for this waybill. */
     is_paid?: boolean;
 }

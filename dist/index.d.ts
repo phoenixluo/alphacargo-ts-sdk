@@ -105,6 +105,7 @@ interface UpdateWaybillRequest {
     tags?: string[] | null;
     priority?: number | null;
     requires_signature?: boolean | null;
+    sender_account_id?: string | null;
 }
 interface TrackingRoute {
     state: string;

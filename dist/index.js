@@ -745,12 +745,21 @@ var Invoices = class {
    *
    * @example
    * ```typescript
-   * const invoice = await client.invoices.create({
+   * // Create as draft (default)
+   * const draft = await client.invoices.create({
    *   contractor_id: 'contractor-uuid',
    *   period_start: '2024-01-01',
    *   period_end: '2024-01-31',
    *   billing_ids: ['billing-1', 'billing-2'],
-   *   tax_rate: 7
+   * });
+   *
+   * // Create and issue in one step
+   * const issued = await client.invoices.create({
+   *   contractor_id: 'contractor-uuid',
+   *   period_start: '2024-01-01',
+   *   period_end: '2024-01-31',
+   *   billing_ids: ['billing-1', 'billing-2'],
+   *   status: 'issued',
    * });
    * ```
    */

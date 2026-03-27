@@ -410,7 +410,12 @@ interface CreateInvoiceRequest {
     notes?: string;
     payment_terms?: string;
     tax_rate?: number;
-    currency?: string;
+    /** Initial status — 'draft' (default) or 'issued' to create and issue in one step */
+    status?: 'draft' | 'issued';
+    /** Issue date (YYYY-MM-DD). Defaults to today when status='issued'. */
+    issue_date?: string;
+    /** Due date (YYYY-MM-DD). Defaults to issue_date + billing profile payment terms when status='issued'. */
+    due_date?: string;
 }
 interface UpdateInvoiceRequest {
     status?: InvoiceStatus;
@@ -473,8 +478,9 @@ interface CreatePaymentRequest {
         invoice_id: string;
         amount: number;
     }>;
+    /** Payer org (required for B2B) */
     contractor_id?: string;
-    subcontractor_id?: string;
+    /** Payer sender account (required for B2C) */
     sender_account_id?: string;
 }
 interface UpdatePaymentRequest {
@@ -529,10 +535,12 @@ interface FlashPayRequest {
         amount: number;
     }>;
     flashpay_type: FlashPayType;
+    /** Required when flashpay_type is 'app' — Thai bank code */
     flashpay_bank_code?: string;
     description?: string;
+    /** Payer org (optional — resolved from invoice if omitted) */
     contractor_id?: string;
-    subcontractor_id?: string;
+    /** Payer sender account (optional — resolved from invoice if omitted) */
     sender_account_id?: string;
 }
 interface FlashPayQRResponse {
@@ -1490,12 +1498,21 @@ declare class Invoices {
      *
      * @example
      * ```typescript
-     * const invoice = await client.invoices.create({
+     * // Create as draft (default)
+     * const draft = await client.invoices.create({
      *   contractor_id: 'contractor-uuid',
      *   period_start: '2024-01-01',
      *   period_end: '2024-01-31',
      *   billing_ids: ['billing-1', 'billing-2'],
-     *   tax_rate: 7
+     * });
+     *
+     * // Create and issue in one step
+     * const issued = await client.invoices.create({
+     *   contractor_id: 'contractor-uuid',
+     *   period_start: '2024-01-01',
+     *   period_end: '2024-01-31',
+     *   billing_ids: ['billing-1', 'billing-2'],
+     *   status: 'issued',
      * });
      * ```
      */

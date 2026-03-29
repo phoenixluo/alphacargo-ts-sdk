@@ -17,6 +17,8 @@ export {
   Reports,
   Regions,
   WaybillRoutes,
+  Organizations,
+  OrganizationUnits,
 } from './resources';
 
 // Types
@@ -141,6 +143,18 @@ export type {
   RegionProvince,
   RegionHierarchy,
   ListRegionsParams,
+
+  // Organization
+  Organization,
+  UpdateOrganizationRequest,
+
+  // Organization Unit
+  OrganizationUnitType,
+  OrganizationUnit,
+  OrganizationUnitAddress,
+  CreateOrganizationUnitRequest,
+  UpdateOrganizationUnitRequest,
+  ListOrganizationUnitsParams,
 
   // Delivery Events
   DeliveryEventType,

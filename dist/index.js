@@ -24,6 +24,8 @@ __export(index_exports, {
   Billings: () => Billings,
   DeliveryEvents: () => DeliveryEvents,
   Invoices: () => Invoices,
+  OrganizationUnits: () => OrganizationUnits,
+  Organizations: () => Organizations,
   Payments: () => Payments,
   RateCards: () => RateCards,
   Regions: () => Regions,
@@ -1793,6 +1795,122 @@ var WaybillRoutes = class {
   }
 };
 
+// src/resources/organizations.ts
+var Organizations = class {
+  constructor(http) {
+    this.http = http;
+  }
+  /**
+   * Get the current authenticated organization
+   *
+   * @returns Organization details
+   *
+   * @example
+   * ```typescript
+   * const org = await client.organizations.get();
+   * console.log(org.name); // 'Acme Corp'
+   * ```
+   */
+  async get() {
+    return this.http.get("/organizations");
+  }
+  /**
+   * Update the current organization
+   *
+   * @param data - Fields to update
+   * @returns Updated organization
+   *
+   * @example
+   * ```typescript
+   * const org = await client.organizations.update({
+   *   name: 'Acme Corp Updated',
+   *   phone: '0812345678'
+   * });
+   * ```
+   */
+  async update(data) {
+    return this.http.patch("/organizations", data);
+  }
+};
+
+// src/resources/organization-units.ts
+var OrganizationUnits = class {
+  constructor(http) {
+    this.http = http;
+  }
+  /**
+   * List organization units with optional filters
+   *
+   * @param params - Query parameters for filtering
+   * @returns Paginated list of organization units
+   *
+   * @example
+   * ```typescript
+   * const units = await client.organizationUnits.list({
+   *   type: 'branch',
+   *   is_active: true,
+   *   limit: 50
+   * });
+   * console.log(units.data); // Array of organization units
+   * ```
+   */
+  async list(params) {
+    return this.http.get("/organization-units", params);
+  }
+  /**
+   * Create a new organization unit
+   *
+   * @param data - Organization unit creation data
+   * @returns Created organization unit
+   *
+   * @example
+   * ```typescript
+   * const unit = await client.organizationUnits.create({
+   *   name: 'Bangkok Branch',
+   *   code: 'BKK-01',
+   *   type: 'branch',
+   *   address: {
+   *     street_line: '123 Sukhumvit Rd',
+   *     city: 'Bangkok',
+   *     state: 'Bangkok',
+   *     zip_code: '10110',
+   *     country: 'TH'
+   *   },
+   *   phone: '0212345678'
+   * });
+   * ```
+   */
+  async create(data) {
+    return this.http.post("/organization-units", data);
+  }
+  /**
+   * Update an organization unit
+   *
+   * @param id - Organization unit ID
+   * @param data - Fields to update
+   * @returns Updated organization unit
+   *
+   * @example
+   * ```typescript
+   * await client.organizationUnits.update('unit-uuid', {
+   *   name: 'Bangkok Main Branch',
+   *   is_active: false
+   * });
+   * ```
+   */
+  async update(id, data) {
+    return this.http.patch(`/organization-units/${encodeURIComponent(id)}`, data);
+  }
+  /**
+   * Delete an organization unit
+   *
+   * @param id - Organization unit ID
+   */
+  async delete(id) {
+    await this.http.delete(`/organization-units/${encodeURIComponent(id)}`);
+  }
+};
+
 // src/client.ts
 var TMSClient = class {
   /**
@@ -1832,6 +1950,8 @@ var TMSClient = class {
     this.reports = new Reports(this.http);
     this.regions = new Regions(this.http);
     this.waybillRoutes = new WaybillRoutes(this.http);
+    this.organizations = new Organizations(this.http);
+    this.organizationUnits = new OrganizationUnits(this.http);
   }
 };
 // Annotate the CommonJS export names for ESM import in node:
@@ -1840,6 +1960,8 @@ var TMSClient = class {
   Billings,
   DeliveryEvents,
   Invoices,
+  OrganizationUnits,
+  Organizations,
   Payments,
   RateCards,
   Regions,

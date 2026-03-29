@@ -1126,6 +1126,115 @@ export interface ListRegionsParams {
 }
 
 // ============================================================================
+// Organization Types
+// ============================================================================
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  type: 'business' | 'individual' | 'enterprise';
+  size: 'small' | 'medium' | 'large' | 'enterprise';
+  status: 'active' | 'suspended' | 'pending';
+  owner_id: string;
+  logo_url?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  custom_domain?: string | null;
+  domain_verified?: boolean;
+  description?: string | null;
+  settings?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateOrganizationRequest {
+  name?: string;
+  type?: 'business' | 'individual' | 'enterprise';
+  size?: 'small' | 'medium' | 'large' | 'enterprise';
+  logo_url?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  description?: string | null;
+  settings?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+// ============================================================================
+// Organization Unit Types
+// ============================================================================
+
+export type OrganizationUnitType = 'branch' | 'warehouse' | 'office' | 'hub' | 'division' | 'department';
+
+export interface OrganizationUnit {
+  id: string;
+  organization_id: string;
+  name: string;
+  code: string;
+  type: OrganizationUnitType;
+  description?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address_id?: string | null;
+  manager_user_id?: string | null;
+  parent_unit_id?: string | null;
+  is_active: boolean;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrganizationUnitAddress {
+  street_line?: string;
+  block_floor_room?: string;
+  city?: string;
+  state?: string;
+  town?: string;
+  zip_code?: string;
+  country?: string;
+  coordinates?: { lat: number; lng: number };
+}
+
+export interface CreateOrganizationUnitRequest {
+  name: string;
+  code: string;
+  type?: OrganizationUnitType;
+  address: OrganizationUnitAddress;
+  phone?: string | null;
+  email?: string | null;
+  is_active?: boolean;
+  manager_user_id?: string | null;
+  parent_unit_id?: string | null;
+  service_area_ids?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateOrganizationUnitRequest {
+  name?: string;
+  type?: OrganizationUnitType;
+  phone?: string | null;
+  email?: string | null;
+  is_active?: boolean;
+  manager_user_id?: string | null;
+  parent_unit_id?: string | null;
+  service_area_ids?: string[];
+  address_id?: string | null;
+  address?: OrganizationUnitAddress;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ListOrganizationUnitsParams {
+  search?: string;
+  type?: OrganizationUnitType;
+  is_active?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+// ============================================================================
 // SDK Configuration Types
 // ============================================================================
 

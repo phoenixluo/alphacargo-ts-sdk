@@ -9,3 +9,5 @@ export { DeliveryEvents } from './delivery-events';
 export { Reports } from './reports';
 export { Regions } from './regions';
 export { WaybillRoutes } from './waybill-routes';
+export { Organizations } from './organizations';
+export { OrganizationUnits } from './organization-units';

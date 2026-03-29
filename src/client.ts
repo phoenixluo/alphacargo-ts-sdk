@@ -11,6 +11,8 @@ import {
   Reports,
   Regions,
   WaybillRoutes,
+  Organizations,
+  OrganizationUnits,
 } from './resources';
 import type { TMSClientConfig } from './types';
 
@@ -98,6 +100,16 @@ export class TMSClient {
   public readonly waybillRoutes: WaybillRoutes;
 
   /**
+   * Organizations resource for managing the current organization
+   */
+  public readonly organizations: Organizations;
+
+  /**
+   * OrganizationUnits resource for managing organization units (branches, warehouses, etc.)
+   */
+  public readonly organizationUnits: OrganizationUnits;
+
+  /**
    * Create a new TMS API client
    *
    * @param config - Client configuration
@@ -137,5 +149,7 @@ export class TMSClient {
     this.reports = new Reports(this.http);
     this.regions = new Regions(this.http);
     this.waybillRoutes = new WaybillRoutes(this.http);
+    this.organizations = new Organizations(this.http);
+    this.organizationUnits = new OrganizationUnits(this.http);
   }
 }

@@ -957,6 +957,102 @@ interface ListRegionsParams {
     /** Optional postal code to narrow the hierarchy */
     postal_code?: string;
 }
+interface Organization {
+    id: string;
+    name: string;
+    slug: string;
+    type: 'business' | 'individual' | 'enterprise';
+    size: 'small' | 'medium' | 'large' | 'enterprise';
+    status: 'active' | 'suspended' | 'pending';
+    owner_id: string;
+    logo_url?: string | null;
+    website?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    custom_domain?: string | null;
+    domain_verified?: boolean;
+    description?: string | null;
+    settings?: Record<string, unknown> | null;
+    metadata?: Record<string, unknown> | null;
+    created_at: string;
+    updated_at: string;
+}
+interface UpdateOrganizationRequest {
+    name?: string;
+    type?: 'business' | 'individual' | 'enterprise';
+    size?: 'small' | 'medium' | 'large' | 'enterprise';
+    logo_url?: string | null;
+    website?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    description?: string | null;
+    settings?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+}
+type OrganizationUnitType = 'branch' | 'warehouse' | 'office' | 'hub' | 'division' | 'department';
+interface OrganizationUnit {
+    id: string;
+    organization_id: string;
+    name: string;
+    code: string;
+    type: OrganizationUnitType;
+    description?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address_id?: string | null;
+    manager_user_id?: string | null;
+    parent_unit_id?: string | null;
+    is_active: boolean;
+    metadata?: Record<string, unknown> | null;
+    created_at: string;
+    updated_at: string;
+}
+interface OrganizationUnitAddress {
+    street_line?: string;
+    block_floor_room?: string;
+    city?: string;
+    state?: string;
+    town?: string;
+    zip_code?: string;
+    country?: string;
+    coordinates?: {
+        lat: number;
+        lng: number;
+    };
+}
+interface CreateOrganizationUnitRequest {
+    name: string;
+    code: string;
+    type?: OrganizationUnitType;
+    address: OrganizationUnitAddress;
+    phone?: string | null;
+    email?: string | null;
+    is_active?: boolean;
+    manager_user_id?: string | null;
+    parent_unit_id?: string | null;
+    service_area_ids?: string[];
+    metadata?: Record<string, unknown>;
+}
+interface UpdateOrganizationUnitRequest {
+    name?: string;
+    type?: OrganizationUnitType;
+    phone?: string | null;
+    email?: string | null;
+    is_active?: boolean;
+    manager_user_id?: string | null;
+    parent_unit_id?: string | null;
+    service_area_ids?: string[];
+    address_id?: string | null;
+    address?: OrganizationUnitAddress;
+    metadata?: Record<string, unknown>;
+}
+interface ListOrganizationUnitsParams {
+    search?: string;
+    type?: OrganizationUnitType;
+    is_active?: boolean;
+    limit?: number;
+    offset?: number;
+}
 interface TMSClientConfig {
     /**
      * Base URL of the TMS API
@@ -2407,6 +2503,123 @@ declare class WaybillRoutes {
 }
 
 /**
+ * Organizations resource for managing the current organization
+ */
+declare class Organizations {
+    private readonly http;
+    constructor(http: HttpClient);
+    /**
+     * Get the current authenticated organization
+     *
+     * @returns Organization details
+     *
+     * @example
+     * ```typescript
+     * const org = await client.organizations.get();
+     * console.log(org.name); // 'Acme Corp'
+     * ```
+     */
+    get(): Promise<Organization>;
+    /**
+     * Update the current organization
+     *
+     * @param data - Fields to update
+     * @returns Updated organization
+     *
+     * @example
+     * ```typescript
+     * const org = await client.organizations.update({
+     *   name: 'Acme Corp Updated',
+     *   phone: '0812345678'
+     * });
+     * ```
+     */
+    update(data: UpdateOrganizationRequest): Promise<Organization>;
+}
+
+interface ListOrganizationUnitsResponse {
+    data: OrganizationUnit[];
+    pagination: {
+        total: number;
+        limit: number;
+        offset: number;
+        page: number;
+        pageSize: number;
+        totalPages: number;
+    };
+}
+/**
+ * OrganizationUnits resource for managing organization units (branches, warehouses, etc.)
+ */
+declare class OrganizationUnits {
+    private readonly http;
+    constructor(http: HttpClient);
+    /**
+     * List organization units with optional filters
+     *
+     * @param params - Query parameters for filtering
+     * @returns Paginated list of organization units
+     *
+     * @example
+     * ```typescript
+     * const units = await client.organizationUnits.list({
+     *   type: 'branch',
+     *   is_active: true,
+     *   limit: 50
+     * });
+     * console.log(units.data); // Array of organization units
+     * ```
+     */
+    list(params?: ListOrganizationUnitsParams): Promise<ListOrganizationUnitsResponse>;
+    /**
+     * Create a new organization unit
+     *
+     * @param data - Organization unit creation data
+     * @returns Created organization unit
+     *
+     * @example
+     * ```typescript
+     * const unit = await client.organizationUnits.create({
+     *   name: 'Bangkok Branch',
+     *   code: 'BKK-01',
+     *   type: 'branch',
+     *   address: {
+     *     street_line: '123 Sukhumvit Rd',
+     *     city: 'Bangkok',
+     *     state: 'Bangkok',
+     *     zip_code: '10110',
+     *     country: 'TH'
+     *   },
+     *   phone: '0212345678'
+     * });
+     * ```
+     */
+    create(data: CreateOrganizationUnitRequest): Promise<OrganizationUnit>;
+    /**
+     * Update an organization unit
+     *
+     * @param id - Organization unit ID
+     * @param data - Fields to update
+     * @returns Updated organization unit
+     *
+     * @example
+     * ```typescript
+     * await client.organizationUnits.update('unit-uuid', {
+     *   name: 'Bangkok Main Branch',
+     *   is_active: false
+     * });
+     * ```
+     */
+    update(id: string, data: UpdateOrganizationUnitRequest): Promise<OrganizationUnit>;
+    /**
+     * Delete an organization unit
+     *
+     * @param id - Organization unit ID
+     */
+    delete(id: string): Promise<void>;
+}
+
+/**
  * TMS API Client
  *
  * The main entry point for interacting with the TMS API.
@@ -2478,6 +2691,14 @@ declare class TMSClient {
      */
     readonly waybillRoutes: WaybillRoutes;
     /**
+     * Organizations resource for managing the current organization
+     */
+    readonly organizations: Organizations;
+    /**
+     * OrganizationUnits resource for managing organization units (branches, warehouses, etc.)
+     */
+    readonly organizationUnits: OrganizationUnits;
+    /**
      * Create a new TMS API client
      *
      * @param config - Client configuration
@@ -2495,4 +2716,4 @@ declare class TMSClient {
     constructor(config: TMSClientConfig);
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWaybillRoutesParams, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };

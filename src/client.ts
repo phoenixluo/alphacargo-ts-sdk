@@ -13,6 +13,7 @@ import {
   WaybillRoutes,
   Organizations,
   OrganizationUnits,
+  Wallets,
 } from './resources';
 import type { TMSClientConfig } from './types';
 
@@ -110,6 +111,11 @@ export class TMSClient {
   public readonly organizationUnits: OrganizationUnits;
 
   /**
+   * Wallets resource for prepaid deposit balances (top-up, pay, transactions)
+   */
+  public readonly wallets: Wallets;
+
+  /**
    * Create a new TMS API client
    *
    * @param config - Client configuration
@@ -151,5 +157,6 @@ export class TMSClient {
     this.waybillRoutes = new WaybillRoutes(this.http);
     this.organizations = new Organizations(this.http);
     this.organizationUnits = new OrganizationUnits(this.http);
+    this.wallets = new Wallets(this.http);
   }
 }

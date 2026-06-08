@@ -171,8 +171,8 @@ export interface WaybillListParams extends PaginationParams {
   waiting_for_assignment?: boolean;
   date_from?: string;
   date_to?: string;
-  /** Set to "1" to include `is_paid` on each waybill (true when any billing with status "paid" exists) */
-  payment?: string;
+  /** Filter by payment status (e.g. "paid", "unpaid") */
+  payment_status?: string;
 }
 
 /** Lightweight waybill summary returned by the list endpoint (query_waybills_optimized) */
@@ -195,8 +195,8 @@ export interface WaybillSummary {
   max_height?: number | null;
   /** Sum of non-canceled billing amounts for this waybill. */
   billing_total?: number;
-  /** Present when `payment=1` is requested. True if any billing with status "paid" exists for this waybill. */
-  is_paid?: boolean;
+  /** Payment status derived from billings: "paid" when all non-canceled billings are paid, otherwise "unpaid". */
+  payment_status?: string;
 }
 
 export interface WaybillAddress {
@@ -464,6 +464,12 @@ export interface CreateInvoiceRequest {
   notes?: string;
   payment_terms?: string;
   tax_rate?: number;
+  /**
+   * Fixed discount applied to the invoice (THB). Defaults to 0. Clamped to the
+   * computed subtotal server-side. Use to push a coupon/points discount into
+   * the invoice total at creation time.
+   */
+  discount_amount?: number;
   /** Initial status — 'draft' (default) or 'issued' to create and issue in one step */
   status?: 'draft' | 'issued';
   /** Issue date (YYYY-MM-DD). Defaults to today when status='issued'. */
@@ -509,8 +515,20 @@ export type SendEmailRequest = SendInvoiceEmailRequest;
 // Payment Types
 // ============================================================================
 
-export type PaymentStatus = 'pending' | 'verified' | 'rejected';
-export type PaymentMethod = 'bank_transfer' | 'flashpay';
+/**
+ * Payment lifecycle status. Mirrors the database enum (the `payments_status_check`
+ * constraint plus the `processing` value the payment service uses for in-flight
+ * bank-transfer/FlashPay verification). The previous `verified`/`rejected` values
+ * never existed in the database and have been removed.
+ */
+export type PaymentStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'refunded'
+  | 'canceled';
+export type PaymentMethod = 'bank_transfer' | 'flashpay' | 'wallet';
 
 export interface PaymentAllocation {
   id: string;
@@ -628,6 +646,84 @@ export interface FlashPayAppResponse {
 }
 
 export type FlashPayResponse = FlashPayQRResponse | FlashPayAppResponse;
+
+// ============================================================================
+// Wallet (prepaid deposit) Types
+// ============================================================================
+
+export type WalletTransactionType = 'topup' | 'debit' | 'refund' | 'adjust';
+
+export interface WalletBalance {
+  wallet_id: string;
+  sender_account_id: string;
+  balance: number;
+  currency: string;
+}
+
+export interface WalletTransaction {
+  id: string;
+  wallet_id: string;
+  type: WalletTransactionType;
+  amount: number;
+  balance_after: number;
+  related_payment_id?: string | null;
+  idempotency_key: string;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface TopUpWalletRequest {
+  sender_account_id: string;
+  amount: number;
+  flashpay_type: FlashPayType;
+  /** Required when flashpay_type is 'app' — Thai bank code. */
+  flashpay_bank_code?: string;
+  description?: string;
+}
+
+export interface WalletTopUpQRResponse {
+  type: 'qr';
+  payment_id: string;
+  trade_no: string;
+  qr_image: string;
+  qr_raw_data: string;
+}
+
+export interface WalletTopUpAppResponse {
+  type: 'app';
+  payment_id: string;
+  trade_no: string;
+  deeplink_url: string;
+}
+
+export type WalletTopUpResponse = WalletTopUpQRResponse | WalletTopUpAppResponse;
+
+export interface PayInvoiceWithWalletRequest {
+  sender_account_id: string;
+  invoice_id: string;
+  /** Amount to debit. Defaults to the invoice's outstanding balance. */
+  amount?: number;
+}
+
+export interface PayInvoiceWithWalletResponse {
+  payment_id: string;
+  balance: number;
+}
+
+export interface ListWalletTransactionsParams extends PaginationParams {
+  sender_account_id: string;
+  type?: WalletTransactionType;
+}
+
+export interface WalletTransactionsResponse {
+  data: WalletTransaction[];
+  pagination: {
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
+}
 
 // ============================================================================
 // Rate Card Types

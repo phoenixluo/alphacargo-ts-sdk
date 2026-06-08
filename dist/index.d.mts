@@ -148,8 +148,8 @@ interface WaybillListParams extends PaginationParams {
     waiting_for_assignment?: boolean;
     date_from?: string;
     date_to?: string;
-    /** Set to "1" to include `is_paid` on each waybill (true when any billing with status "paid" exists) */
-    payment?: string;
+    /** Filter by payment status (e.g. "paid", "unpaid") */
+    payment_status?: string;
 }
 /** Lightweight waybill summary returned by the list endpoint (query_waybills_optimized) */
 interface WaybillSummary {
@@ -171,8 +171,8 @@ interface WaybillSummary {
     max_height?: number | null;
     /** Sum of non-canceled billing amounts for this waybill. */
     billing_total?: number;
-    /** Present when `payment=1` is requested. True if any billing with status "paid" exists for this waybill. */
-    is_paid?: boolean;
+    /** Payment status derived from billings: "paid" when all non-canceled billings are paid, otherwise "unpaid". */
+    payment_status?: string;
 }
 interface WaybillAddress {
     id?: string;
@@ -410,6 +410,12 @@ interface CreateInvoiceRequest {
     notes?: string;
     payment_terms?: string;
     tax_rate?: number;
+    /**
+     * Fixed discount applied to the invoice (THB). Defaults to 0. Clamped to the
+     * computed subtotal server-side. Use to push a coupon/points discount into
+     * the invoice total at creation time.
+     */
+    discount_amount?: number;
     /** Initial status — 'draft' (default) or 'issued' to create and issue in one step */
     status?: 'draft' | 'issued';
     /** Issue date (YYYY-MM-DD). Defaults to today when status='issued'. */
@@ -445,8 +451,14 @@ interface SendInvoiceEmailRequest {
 }
 /** @deprecated Use SendInvoiceEmailRequest instead */
 type SendEmailRequest = SendInvoiceEmailRequest;
-type PaymentStatus = 'pending' | 'verified' | 'rejected';
-type PaymentMethod = 'bank_transfer' | 'flashpay';
+/**
+ * Payment lifecycle status. Mirrors the database enum (the `payments_status_check`
+ * constraint plus the `processing` value the payment service uses for in-flight
+ * bank-transfer/FlashPay verification). The previous `verified`/`rejected` values
+ * never existed in the database and have been removed.
+ */
+type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'canceled';
+type PaymentMethod = 'bank_transfer' | 'flashpay' | 'wallet';
 interface PaymentAllocation {
     id: string;
     payment_id?: string;
@@ -555,6 +567,69 @@ interface FlashPayAppResponse {
     trade_no: string;
 }
 type FlashPayResponse = FlashPayQRResponse | FlashPayAppResponse;
+type WalletTransactionType = 'topup' | 'debit' | 'refund' | 'adjust';
+interface WalletBalance {
+    wallet_id: string;
+    sender_account_id: string;
+    balance: number;
+    currency: string;
+}
+interface WalletTransaction {
+    id: string;
+    wallet_id: string;
+    type: WalletTransactionType;
+    amount: number;
+    balance_after: number;
+    related_payment_id?: string | null;
+    idempotency_key: string;
+    metadata?: Record<string, unknown> | null;
+    created_at: string;
+}
+interface TopUpWalletRequest {
+    sender_account_id: string;
+    amount: number;
+    flashpay_type: FlashPayType;
+    /** Required when flashpay_type is 'app' — Thai bank code. */
+    flashpay_bank_code?: string;
+    description?: string;
+}
+interface WalletTopUpQRResponse {
+    type: 'qr';
+    payment_id: string;
+    trade_no: string;
+    qr_image: string;
+    qr_raw_data: string;
+}
+interface WalletTopUpAppResponse {
+    type: 'app';
+    payment_id: string;
+    trade_no: string;
+    deeplink_url: string;
+}
+type WalletTopUpResponse = WalletTopUpQRResponse | WalletTopUpAppResponse;
+interface PayInvoiceWithWalletRequest {
+    sender_account_id: string;
+    invoice_id: string;
+    /** Amount to debit. Defaults to the invoice's outstanding balance. */
+    amount?: number;
+}
+interface PayInvoiceWithWalletResponse {
+    payment_id: string;
+    balance: number;
+}
+interface ListWalletTransactionsParams extends PaginationParams {
+    sender_account_id: string;
+    type?: WalletTransactionType;
+}
+interface WalletTransactionsResponse {
+    data: WalletTransaction[];
+    pagination: {
+        total: number;
+        page: number;
+        pageSize: number;
+        totalPages: number;
+    };
+}
 interface RateCard {
     id: string;
     name: string;
@@ -1718,7 +1793,7 @@ declare class Payments {
      * @example
      * ```typescript
      * const payments = await client.payments.list({
-     *   status: 'verified',
+     *   status: 'completed',
      *   invoice_id: 'invoice-uuid',
      *   from_date: '2024-01-01',
      *   to_date: '2024-01-31',
@@ -1772,7 +1847,7 @@ declare class Payments {
      * @example
      * ```typescript
      * await client.payments.update('payment-uuid', {
-     *   status: 'verified',
+     *   status: 'completed',
      *   reference_no: 'BANK-REF-123'
      * });
      * ```
@@ -2620,6 +2695,70 @@ declare class OrganizationUnits {
 }
 
 /**
+ * Wallets resource — prepaid deposit balances.
+ *
+ * A wallet is a single money ledger per sender account. Top-ups are funded
+ * through FlashPay (credited on webhook confirmation); the balance can then be
+ * used to pay invoices.
+ */
+declare class Wallets {
+    private readonly http;
+    constructor(http: HttpClient);
+    /**
+     * Get the wallet balance for a sender account (created lazily on first access).
+     *
+     * @example
+     * ```typescript
+     * const wallet = await client.wallets.getBalance('sender-account-uuid');
+     * console.log(wallet.balance); // e.g. 1500.00
+     * ```
+     */
+    getBalance(senderAccountId: string): Promise<WalletBalance>;
+    /**
+     * Start a wallet top-up via FlashPay. Returns the QR image / deeplink and the
+     * payment id. The balance is credited only when FlashPay confirms the payment.
+     *
+     * @example
+     * ```typescript
+     * const topup = await client.wallets.topUp({
+     *   sender_account_id: 'sender-account-uuid',
+     *   amount: 1000,
+     *   flashpay_type: 'qr',
+     * });
+     * if (topup.type === 'qr') console.log(topup.qr_image);
+     * ```
+     */
+    topUp(data: TopUpWalletRequest): Promise<WalletTopUpResponse>;
+    /**
+     * Pay (part of) an invoice from the wallet balance. Defaults to the invoice's
+     * outstanding balance when `amount` is omitted.
+     *
+     * @example
+     * ```typescript
+     * const result = await client.wallets.pay({
+     *   sender_account_id: 'sender-account-uuid',
+     *   invoice_id: 'invoice-uuid',
+     * });
+     * console.log(result.balance); // remaining wallet balance
+     * ```
+     */
+    pay(data: PayInvoiceWithWalletRequest): Promise<PayInvoiceWithWalletResponse>;
+    /**
+     * List ledger entries for a sender account's wallet (most recent first).
+     *
+     * @example
+     * ```typescript
+     * const { data, pagination } = await client.wallets.listTransactions({
+     *   sender_account_id: 'sender-account-uuid',
+     *   page: 1,
+     *   pageSize: 20,
+     * });
+     * ```
+     */
+    listTransactions(params: ListWalletTransactionsParams): Promise<WalletTransactionsResponse>;
+}
+
+/**
  * TMS API Client
  *
  * The main entry point for interacting with the TMS API.
@@ -2699,6 +2838,10 @@ declare class TMSClient {
      */
     readonly organizationUnits: OrganizationUnits;
     /**
+     * Wallets resource for prepaid deposit balances (top-up, pay, transactions)
+     */
+    readonly wallets: Wallets;
+    /**
      * Create a new TMS API client
      *
      * @param config - Client configuration
@@ -2716,4 +2859,4 @@ declare class TMSClient {
     constructor(config: TMSClientConfig);
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };

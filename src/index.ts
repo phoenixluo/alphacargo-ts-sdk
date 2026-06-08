@@ -19,6 +19,7 @@ export {
   WaybillRoutes,
   Organizations,
   OrganizationUnits,
+  Wallets,
 } from './resources';
 
 // Types
@@ -97,6 +98,19 @@ export type {
   FlashPayResponse,
   FlashPayQRResponse,
   FlashPayAppResponse,
+
+  // Wallet
+  WalletTransactionType,
+  WalletBalance,
+  WalletTransaction,
+  TopUpWalletRequest,
+  WalletTopUpResponse,
+  WalletTopUpQRResponse,
+  WalletTopUpAppResponse,
+  PayInvoiceWithWalletRequest,
+  PayInvoiceWithWalletResponse,
+  ListWalletTransactionsParams,
+  WalletTransactionsResponse,
 
   // Rate Card
   RateCard,

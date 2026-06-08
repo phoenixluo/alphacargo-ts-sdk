@@ -29,7 +29,7 @@ export class Payments {
    * @example
    * ```typescript
    * const payments = await client.payments.list({
-   *   status: 'verified',
+   *   status: 'completed',
    *   invoice_id: 'invoice-uuid',
    *   from_date: '2024-01-01',
    *   to_date: '2024-01-31',
@@ -92,7 +92,7 @@ export class Payments {
    * @example
    * ```typescript
    * await client.payments.update('payment-uuid', {
-   *   status: 'verified',
+   *   status: 'completed',
    *   reference_no: 'BANK-REF-123'
    * });
    * ```

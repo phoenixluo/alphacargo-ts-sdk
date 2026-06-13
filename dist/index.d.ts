@@ -669,6 +669,7 @@ interface UpdateRateCardRequest {
 interface ListRateCardsParams {
     service_id?: string;
     contractor_id?: string;
+    route_id?: string;
 }
 interface SenderAccount {
     id: string;

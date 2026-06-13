@@ -768,6 +768,7 @@ export interface UpdateRateCardRequest {
 export interface ListRateCardsParams {
   service_id?: string;
   contractor_id?: string;
+  route_id?: string;
 }
 
 // ============================================================================

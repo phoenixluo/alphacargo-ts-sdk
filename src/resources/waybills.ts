@@ -330,6 +330,24 @@ export class Waybills {
   }
 
   /**
+   * Remove an additional service from a waybill. This triggers a billing
+   * recalculation that cancels the corresponding billing line item.
+   *
+   * @param waybillNo - Waybill number
+   * @param serviceId - Additional service record ID
+   *
+   * @example
+   * ```typescript
+   * await client.waybills.removeAdditionalService('TH24020001', 'service-record-id');
+   * ```
+   */
+  async removeAdditionalService(waybillNo: string, serviceId: string): Promise<void> {
+    await this.http.delete<{ success: boolean }>(
+      `/waybills/${encodeURIComponent(waybillNo)}/additional-services/${encodeURIComponent(serviceId)}`
+    );
+  }
+
+  /**
    * Create a consolidated waybill from multiple source waybills
    *
    * @param data - Consolidation request data

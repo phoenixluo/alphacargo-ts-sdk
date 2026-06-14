@@ -326,11 +326,15 @@ interface BillingRecord {
     organization_id?: string;
     waybill_id?: string;
     delivery_id?: string;
+    /** Route leg this billing priced (snapshot, for per-leg consolidated shipments). */
+    route_leg_id?: string;
     invoice_id?: string;
     billing_profile_id?: string;
     quantity: number;
     unit_price: number;
     amount: number;
+    /** Currency, copied from the rate card at creation. Defaults to "THB". */
+    currency: CurrencyCode;
     status: BillingStatus;
     created_at: string;
     updated_at: string;
@@ -344,6 +348,8 @@ interface CreateBillingRequest {
     organization_id?: string;
     waybill_id?: string;
     delivery_id?: string;
+    /** Route leg this billing prices (snapshot). */
+    route_leg_id?: string;
     quantity: number;
     status?: BillingStatus;
 }
@@ -388,6 +394,8 @@ interface Invoice {
     contractor_id?: string;
     sender_account_id?: string;
     status: InvoiceStatus;
+    /** Currency, derived from the invoice's billings. Defaults to "THB". An invoice never mixes currencies. */
+    currency: CurrencyCode;
     subtotal: number;
     tax_amount: number;
     discount_amount?: number;
@@ -404,6 +412,11 @@ interface Invoice {
 interface CreateInvoiceRequest {
     contractor_id?: string;
     sender_account_id?: string;
+    /**
+     * Billings to invoice. They must all share one currency, which becomes the
+     * invoice's currency — a mismatch is rejected with HTTP 400. Omit to create an
+     * empty invoice that defaults to the billing profile's currency.
+     */
     billing_ids?: string[];
     period_start: string;
     period_end: string;
@@ -630,10 +643,14 @@ interface WalletTransactionsResponse {
         totalPages: number;
     };
 }
+/** Supported currency codes (ISO 4217) for the pricing chain. */
+type CurrencyCode = 'THB' | 'USD' | 'CNY' | 'MYR' | 'SGD' | 'VND' | 'KZT';
 interface RateCard {
     id: string;
     name: string;
     unit_price: number;
+    /** Currency of unit_price. Defaults to "THB". */
+    currency: CurrencyCode;
     billing_unit: 'kg' | 'cbm' | 'per_waybill' | 'per_package';
     service_id: string;
     service?: {
@@ -641,6 +658,8 @@ interface RateCard {
         name: string;
     };
     route_id?: string;
+    /** Route leg this card prices. Matched independently of route_id, at higher priority. */
+    route_leg_id?: string;
     contractor_id?: string;
     sender_account_type?: string;
     description?: string;
@@ -649,9 +668,13 @@ interface RateCard {
 interface CreateRateCardRequest {
     name: string;
     unit_price: number;
+    /** Currency of unit_price (ISO 4217). Defaults to "THB". */
+    currency?: CurrencyCode;
     billing_unit: 'kg' | 'cbm' | 'per_waybill' | 'per_package';
     service_id: string;
     route_id?: string;
+    /** Route-leg-specific pricing. Matched independently of route_id, at higher priority. */
+    route_leg_id?: string;
     contractor_id?: string;
     sender_account_type?: string;
     description?: string;
@@ -659,9 +682,13 @@ interface CreateRateCardRequest {
 interface UpdateRateCardRequest {
     name?: string;
     unit_price?: number;
+    /** Currency of unit_price (ISO 4217). */
+    currency?: CurrencyCode;
     billing_unit?: 'kg' | 'cbm' | 'per_waybill' | 'per_package';
     service_id?: string;
     route_id?: string;
+    /** Route-leg-specific pricing. Matched independently of route_id, at higher priority. */
+    route_leg_id?: string;
     contractor_id?: string;
     sender_account_type?: string;
     description?: string;
@@ -670,6 +697,7 @@ interface ListRateCardsParams {
     service_id?: string;
     contractor_id?: string;
     route_id?: string;
+    route_leg_id?: string;
 }
 interface SenderAccount {
     id: string;
@@ -1484,6 +1512,19 @@ declare class Waybills {
      * ```
      */
     updateAdditionalService(waybillNo: string, serviceId: string, data: UpdateAdditionalServiceRequest): Promise<AdditionalService>;
+    /**
+     * Remove an additional service from a waybill. This triggers a billing
+     * recalculation that cancels the corresponding billing line item.
+     *
+     * @param waybillNo - Waybill number
+     * @param serviceId - Additional service record ID
+     *
+     * @example
+     * ```typescript
+     * await client.waybills.removeAdditionalService('TH24020001', 'service-record-id');
+     * ```
+     */
+    removeAdditionalService(waybillNo: string, serviceId: string): Promise<void>;
     /**
      * Create a consolidated waybill from multiple source waybills
      *

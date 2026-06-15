@@ -249,6 +249,8 @@ interface WaybillDetails {
     sub_waybills?: unknown[];
     leg?: unknown[];
     billings?: unknown[];
+    /** Add-on / additional services attached to the waybill */
+    additional_services?: AdditionalService[];
 }
 interface AddPackageRequest {
     external_package_no: string;
@@ -1341,7 +1343,8 @@ declare class Waybills {
      * Get waybill details by waybill number
      *
      * @param waybillNo - Waybill number or external waybill number
-     * @returns Full waybill details including packages, recipient, delegations, etc.
+     * @returns Full waybill details including packages, recipient, delegations,
+     *          additional (add-on) services, billings, etc.
      *
      * @example
      * ```typescript

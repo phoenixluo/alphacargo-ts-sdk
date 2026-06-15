@@ -63,7 +63,8 @@ export class Waybills {
    * Get waybill details by waybill number
    *
    * @param waybillNo - Waybill number or external waybill number
-   * @returns Full waybill details including packages, recipient, delegations, etc.
+   * @returns Full waybill details including packages, recipient, delegations,
+   *          additional (add-on) services, billings, etc.
    *
    * @example
    * ```typescript

@@ -278,6 +278,8 @@ export interface WaybillDetails {
   sub_waybills?: unknown[];
   leg?: unknown[];
   billings?: unknown[];
+  /** Add-on / additional services attached to the waybill */
+  additional_services?: AdditionalService[];
 }
 
 export interface AddPackageRequest {

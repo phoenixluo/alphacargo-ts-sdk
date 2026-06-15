@@ -150,6 +150,8 @@ interface WaybillListParams extends PaginationParams {
     date_to?: string;
     /** Filter by payment status (e.g. "paid", "unpaid") */
     payment_status?: string;
+    /** Filter by consolidation master status. `true` = only consolidated masters, `false` = exclude them, omit = no filter. */
+    is_master?: boolean;
 }
 /** Lightweight waybill summary returned by the list endpoint (query_waybills_optimized) */
 interface WaybillSummary {
@@ -173,6 +175,8 @@ interface WaybillSummary {
     billing_total?: number;
     /** Payment status derived from billings: "paid" when all non-canceled billings are paid, otherwise "unpaid". */
     payment_status?: string;
+    /** True when this waybill is a consolidation master (has at least one sub-waybill pointing at it). */
+    is_master?: boolean;
 }
 interface WaybillAddress {
     id?: string;
@@ -302,6 +306,11 @@ interface ConsolidateWaybillsRequest {
     /** Optional — if omitted, resolved from the route's last leg end unit */
     recipient?: RecipientInput;
     service_id: string;
+    /**
+     * Delivery route for the consolidated master. Omit to let TMS auto-select the
+     * consolidation delivery route from the recipient's service area (postal code),
+     * falling back to the org's default delivery route.
+     */
     route_id?: string;
     notes?: string;
     tags?: string[];

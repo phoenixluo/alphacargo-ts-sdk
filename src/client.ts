@@ -14,6 +14,7 @@ import {
   Organizations,
   OrganizationUnits,
   Wallets,
+  Quotes,
 } from './resources';
 import type { TMSClientConfig } from './types';
 
@@ -116,6 +117,11 @@ export class TMSClient {
   public readonly wallets: Wallets;
 
   /**
+   * Quotes resource for creating FTL/LTL shipping quotations
+   */
+  public readonly quotes: Quotes;
+
+  /**
    * Create a new TMS API client
    *
    * @param config - Client configuration
@@ -158,5 +164,6 @@ export class TMSClient {
     this.organizations = new Organizations(this.http);
     this.organizationUnits = new OrganizationUnits(this.http);
     this.wallets = new Wallets(this.http);
+    this.quotes = new Quotes(this.http);
   }
 }

@@ -12,3 +12,4 @@ export { WaybillRoutes } from './waybill-routes';
 export { Organizations } from './organizations';
 export { OrganizationUnits } from './organization-units';
 export { Wallets } from './wallets';
+export { Quotes } from './quotes';

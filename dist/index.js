@@ -27,6 +27,7 @@ __export(index_exports, {
   OrganizationUnits: () => OrganizationUnits,
   Organizations: () => Organizations,
   Payments: () => Payments,
+  Quotes: () => Quotes,
   RateCards: () => RateCards,
   Regions: () => Regions,
   Reports: () => Reports,
@@ -605,6 +606,34 @@ var Waybills = class {
    */
   async getRoutes(waybillNo) {
     return this.http.getWithSignature(`/waybills/${encodeURIComponent(waybillNo)}/routes`);
+  }
+  /**
+   * Extract the 5-letter sender-account code from a package ID photo via Baidu
+   * OCR. Stateless — persists nothing; pass the returned `code` to
+   * `create()` via `sender_account.code` to set the sender account.
+   *
+   * Requires a Baidu OCR integration configured for the organization. The OCR
+   * tier (standard vs high-accuracy) is chosen from the destination `country`.
+   *
+   * @param params - Image (imageUrl or imageBase64) and optional destination country
+   * @returns The extracted code, confidence and OCR tier used
+   *
+   * @example
+   * ```typescript
+   * const ocr = await client.waybills.extractSenderAccountCode({
+   *   imageUrl: 'https://cdn/photo.jpg',
+   *   country: 'TH',
+   * });
+   * if (ocr.data?.code) {
+   *   await client.waybills.create({ ...waybill, sender_account: { code: ocr.data.code } });
+   * }
+   * ```
+   */
+  async extractSenderAccountCode(params) {
+    return this.http.post(
+      "/ocr/sender-account-code",
+      params
+    );
   }
 };
 
@@ -2011,6 +2040,49 @@ var Wallets = class {
   }
 };
 
+// src/resources/quotes.ts
+var Quotes = class {
+  constructor(http) {
+    this.http = http;
+  }
+  /**
+   * Create a shipping quotation.
+   *
+   * Selects a vehicle/pricing source for the shipment and persists a quotation,
+   * returning the quote ID along with the resolved provider and vehicle.
+   *
+   * @param data - Quote request (cargo, addresses, aggregates)
+   * @returns The created quotation
+   *
+   * @example
+   * ```typescript
+   * const quote = await client.quotes.create({
+   *   request_id: 'req-123',
+   *   draft_order_id: 'draft-456',
+   *   draft_order_version: 1,
+   *   pickup: { address: '123 Sukhumvit Rd, Bangkok' },
+   *   delivery: { address: '456 Nimman Rd, Chiang Mai' },
+   *   items: [
+   *     { qty: 2, length_cm: 100, width_cm: 80, height_cm: 60, weight_kg: 25 },
+   *   ],
+   *   aggregates: {
+   *     total_weight_kg: 50,
+   *     total_volume_m3: 0.96,
+   *     longest_edge_cm: 100,
+   *     total_package_count: 2,
+   *   },
+   * });
+   * console.log(quote.quotation_id, quote.provider, quote.vehicle);
+   * ```
+   */
+  async create(data) {
+    return this.http.post(
+      "/quote",
+      data
+    );
+  }
+};
+
 // src/client.ts
 var TMSClient = class {
   /**
@@ -2053,6 +2125,7 @@ var TMSClient = class {
     this.organizations = new Organizations(this.http);
     this.organizationUnits = new OrganizationUnits(this.http);
     this.wallets = new Wallets(this.http);
+    this.quotes = new Quotes(this.http);
   }
 };
 // Annotate the CommonJS export names for ESM import in node:
@@ -2064,6 +2137,7 @@ var TMSClient = class {
   OrganizationUnits,
   Organizations,
   Payments,
+  Quotes,
   RateCards,
   Regions,
   Reports,

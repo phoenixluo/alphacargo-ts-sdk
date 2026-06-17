@@ -20,6 +20,7 @@ export {
   Organizations,
   OrganizationUnits,
   Wallets,
+  Quotes,
 } from './resources';
 
 // Types
@@ -186,4 +187,13 @@ export type {
   ReportPeriod,
   RevenueSummaryParams,
   RevenueSummaryReport,
+
+  // Quotes
+  QuoteAddress,
+  QuoteItem,
+  QuoteAggregates,
+  QuoteServiceType,
+  QuoteBreakdownLine,
+  CreateQuoteRequest,
+  CreateQuoteResponse,
 } from './types';

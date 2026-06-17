@@ -298,6 +298,32 @@ export interface AddPackageResponse {
   waybill_id: string;
 }
 
+// --- Sender Account OCR ---
+
+export interface SenderAccountOcrParams {
+  /** A photo URL to download and scan. */
+  imageUrl?: string;
+  /** Base64-encoded image bytes (no data: prefix) to scan directly. */
+  imageBase64?: string;
+  /** Destination country (ISO alpha-2) used to pick the OCR tier. */
+  country?: string;
+}
+
+export interface SenderAccountOcrResult {
+  /** The 5-letter code read from the photo, or null if none was found. */
+  code: string | null;
+  /** OCR confidence for the matched token (0–1), when available. */
+  confidence: number | null;
+  /** Which Baidu OCR tier ran. */
+  version: 'standard' | 'high_accuracy';
+}
+
+export interface SenderAccountOcrResponse {
+  success: boolean;
+  data?: SenderAccountOcrResult;
+  error?: string;
+}
+
 // --- Additional Services ---
 
 export interface AdditionalService {
@@ -1369,6 +1395,100 @@ export interface ListOrganizationUnitsParams {
   is_active?: boolean;
   limit?: number;
   offset?: number;
+}
+
+// ============================================================================
+// Quote Types
+// ============================================================================
+
+/** Pickup / delivery address for a quote request. */
+export interface QuoteAddress {
+  /** Free-text address line. */
+  address: string;
+  lat?: number | null;
+  lng?: number | null;
+  country?: string | null;
+  province?: string | null;
+  district?: string | null;
+  postal_code?: string | null;
+  phone?: string | null;
+}
+
+/** A cargo line item in a quote request. */
+export interface QuoteItem {
+  /** Quantity (integer > 0). */
+  qty: number;
+  length_cm: number;
+  width_cm: number;
+  height_cm: number;
+  weight_kg: number;
+  volume_m3?: number | null;
+  stackable?: boolean | null;
+  fragile?: boolean | null;
+  name?: string | null;
+  notes?: string | null;
+  /** Image URLs. Defaults to [] server-side when omitted. */
+  image_urls?: string[];
+}
+
+/** Shipment totals for a quote request. */
+export interface QuoteAggregates {
+  total_weight_kg: number;
+  total_volume_m3: number;
+  longest_edge_cm: number;
+  total_package_count: number;
+}
+
+export type QuoteServiceType = 'ftl_transport' | 'ltl_transport';
+
+export interface CreateQuoteRequest {
+  /** Caller-supplied idempotency/correlation ID (echoed back in the response). */
+  request_id: string;
+  draft_order_id: string;
+  /** Draft order version (integer >= 0). */
+  draft_order_version: number;
+  pickup: QuoteAddress;
+  delivery: QuoteAddress;
+  /** Cargo items (min 1). */
+  items: QuoteItem[];
+  aggregates: QuoteAggregates;
+  /** Defaults to "ftl_transport". */
+  service_type?: QuoteServiceType;
+  cargo_notes?: string | null;
+  /** Add-on requests, each identified by `key`. */
+  addons?: { key: string }[];
+  customer_chat?: { platform: 'line' | 'wechat'; user_id: string } | null;
+  customer?: { name?: string | null; phone?: string | null } | null;
+  /** Min vehicle weight utilization, 0–1 (default 0). */
+  min_weight_fullness?: number;
+  /** Min vehicle volume utilization, 0–1 (default 0). */
+  min_volume_fullness?: number;
+  /** Max vehicle weight utilization, 0–1 (default 0.85). */
+  max_weight_fullness?: number;
+  /** Max vehicle volume utilization, 0–1 (default 0.85). */
+  max_volume_fullness?: number;
+}
+
+/** One line of a quotation's price breakdown (base fare plus any add-ons). */
+export type QuoteBreakdownLine =
+  | { kind: 'base'; amount: number }
+  | { kind: 'addon'; key: string; amount: number };
+
+export interface CreateQuoteResponse {
+  quotation_id: string;
+  request_id: string;
+  draft_order_id: string;
+  draft_order_version: number;
+  /** Selected vehicle, or null when no vehicle dimension applies. */
+  vehicle: { type: string; max_payload_kg: number } | null;
+  /** The quoted price. */
+  estimated_total: number;
+  /** Currency of `estimated_total` (ISO 4217). */
+  currency: string;
+  /** ISO-8601 timestamp after which the quote is no longer valid. */
+  expires_at: string;
+  /** Price breakdown: the base fare followed by any add-on lines. */
+  breakdown: QuoteBreakdownLine[];
 }
 
 // ============================================================================

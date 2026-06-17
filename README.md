@@ -94,6 +94,7 @@ console.log('Waybill created:', waybill.waybill_no);
 | **Billing Profiles** | `client.billingProfiles` | Automated billing cycles |
 | **Delivery Events** | `client.deliveryEvents` | Delivery events and POD photos |
 | **Reports** | `client.reports` | Financial reports |
+| **Quotes** | `client.quotes` | FTL/LTL shipping quotations |
 
 ## Usage Examples
 
@@ -428,6 +429,41 @@ const csv = await client.reports.billingByServiceCSV({
 });
 writeFileSync('report.csv', Buffer.from(csv));
 ```
+
+### Quotes
+
+```typescript
+// Create an FTL/LTL shipping quotation
+const quote = await client.quotes.create({
+  request_id: 'req-123',
+  draft_order_id: 'draft-456',
+  draft_order_version: 1,
+  pickup: { address: '123 Sukhumvit Rd, Bangkok' },
+  delivery: { address: '456 Nimman Rd, Chiang Mai' },
+  items: [
+    { qty: 2, length_cm: 100, width_cm: 80, height_cm: 60, weight_kg: 25 }
+  ],
+  aggregates: {
+    total_weight_kg: 50,
+    total_volume_m3: 0.96,
+    longest_edge_cm: 100,
+    total_package_count: 2
+  }
+});
+
+console.log(quote.quotation_id, quote.vehicle);
+console.log(`${quote.estimated_total} ${quote.currency}, valid until ${quote.expires_at}`);
+console.log(quote.breakdown); // [{ kind: 'base', amount }, { kind: 'addon', key, amount }]
+```
+
+> `draft_order_id` is your own reference (e.g. your cart/order ID), echoed back
+> and stored on the quotation — there is no draft-order entity in the TMS, so you
+> don't need to create one first.
+
+> Quote creation (`POST /api/quote`) uses your API key (signature auth). The
+> customer-facing quote operations (view, pay, cancel, order tracking) are
+> authenticated with a sender-account session, not an API key, so they are not
+> exposed by this server-to-server SDK.
 
 ## Error Handling
 

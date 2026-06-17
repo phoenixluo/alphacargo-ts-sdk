@@ -18,6 +18,8 @@ import type {
   WaybillSummary,
   WaybillDetails,
   PaginatedResponse,
+  SenderAccountOcrParams,
+  SenderAccountOcrResponse,
 } from '../types';
 
 /**
@@ -390,5 +392,36 @@ export class Waybills {
    */
   async getRoutes(waybillNo: string): Promise<WaybillEvents> {
     return this.http.getWithSignature<WaybillEvents>(`/waybills/${encodeURIComponent(waybillNo)}/routes`);
+  }
+
+  /**
+   * Extract the 5-letter sender-account code from a package ID photo via Baidu
+   * OCR. Stateless — persists nothing; pass the returned `code` to
+   * `create()` via `sender_account.code` to set the sender account.
+   *
+   * Requires a Baidu OCR integration configured for the organization. The OCR
+   * tier (standard vs high-accuracy) is chosen from the destination `country`.
+   *
+   * @param params - Image (imageUrl or imageBase64) and optional destination country
+   * @returns The extracted code, confidence and OCR tier used
+   *
+   * @example
+   * ```typescript
+   * const ocr = await client.waybills.extractSenderAccountCode({
+   *   imageUrl: 'https://cdn/photo.jpg',
+   *   country: 'TH',
+   * });
+   * if (ocr.data?.code) {
+   *   await client.waybills.create({ ...waybill, sender_account: { code: ocr.data.code } });
+   * }
+   * ```
+   */
+  async extractSenderAccountCode(
+    params: SenderAccountOcrParams
+  ): Promise<SenderAccountOcrResponse> {
+    return this.http.post<SenderAccountOcrResponse>(
+      '/ocr/sender-account-code',
+      params as unknown as Record<string, unknown>
+    );
   }
 }

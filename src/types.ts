@@ -1481,7 +1481,19 @@ export interface CreateQuoteResponse {
   draft_order_version: number;
   /** Selected vehicle, or null when no vehicle dimension applies. */
   vehicle: { type: string; max_payload_kg: number } | null;
-  /** The quoted price. */
+  /**
+   * Multi-vehicle composition — present (non-null) only when the cargo fits no
+   * single vehicle and was split across a fleet (3PL/provider_markup only).
+   * `estimated_total` is the sum of the per-vehicle `price` values.
+   */
+  vehicles:
+    | Array<{
+        vehicle_type: string;
+        price: number;
+        items: Array<{ name: string | null; qty: number }>;
+      }>
+    | null;
+  /** The quoted price (sum of per-vehicle prices for a composition). */
   estimated_total: number;
   /** Currency of `estimated_total` (ISO 4217). */
   currency: string;

@@ -419,6 +419,31 @@ export interface BillingRecord {
   updated_at: string;
 }
 
+/**
+ * A billing record for a waybill, joined with its related entities. Returned by
+ * `client.waybills.getBillings()`. For a consolidated master waybill this
+ * includes billings from its sub-waybill legs.
+ */
+export interface WaybillBillingRecord {
+  id: string;
+  name: string;
+  amount: number;
+  quantity: number;
+  unit_price: number;
+  status: string;
+  invoice_id: string | null;
+  waybill: { id: string; waybill_no: string } | null;
+  rate_card: { id: string; name: string } | null;
+  invoice: {
+    id: string;
+    invoice_no: string;
+    status: string;
+    total_amount: number;
+  } | null;
+  sender_account: { id: string; name: string; sender_code: string } | null;
+  contractor: { id: string; name: string } | null;
+}
+
 export interface CreateBillingRequest {
   name?: string;
   rate_card_id: string;

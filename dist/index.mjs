@@ -358,6 +358,26 @@ var Waybills = class {
     return this.http.getWithSignature(`/waybills/${encodeURIComponent(waybillNo)}/events`);
   }
   /**
+   * Get billing records for a waybill, joined with rate card, invoice, sender
+   * account and contractor. For a consolidated master waybill this includes the
+   * billings from its sub-waybill legs. Canceled billings are excluded.
+   *
+   * @param waybillNo - Waybill number or external waybill number
+   * @returns Array of billing records
+   *
+   * @example
+   * ```typescript
+   * const billings = await client.waybills.getBillings('TH24020001');
+   * console.log(billings[0].amount); // 150
+   * console.log(billings[0].invoice?.invoice_no); // 'INV-0001'
+   * ```
+   */
+  async getBillings(waybillNo) {
+    return this.http.getWithSignature(
+      `/waybills/${encodeURIComponent(waybillNo)}/billings`
+    );
+  }
+  /**
    * Get shipping label for a waybill (PDF)
    *
    * @param waybillNo - Waybill number

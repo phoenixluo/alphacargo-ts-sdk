@@ -179,7 +179,7 @@ export class Waybills {
    * account and contractor. For a consolidated master waybill this includes the
    * billings from its sub-waybill legs. Canceled billings are excluded.
    *
-   * @param waybillNo - Waybill number or external waybill number
+   * @param waybillNoOrId - Waybill id (UUID), waybill number, or external waybill number
    * @returns Array of billing records
    *
    * @example
@@ -187,11 +187,14 @@ export class Waybills {
    * const billings = await client.waybills.getBillings('TH24020001');
    * console.log(billings[0].amount); // 150
    * console.log(billings[0].invoice?.invoice_no); // 'INV-0001'
+   *
+   * // Also accepts a waybill id (UUID)
+   * await client.waybills.getBillings('a0f41ca5-d350-401f-a557-831084fc7ccc');
    * ```
    */
-  async getBillings(waybillNo: string): Promise<WaybillBillingRecord[]> {
+  async getBillings(waybillNoOrId: string): Promise<WaybillBillingRecord[]> {
     return this.http.getWithSignature<WaybillBillingRecord[]>(
-      `/waybills/${encodeURIComponent(waybillNo)}/billings`
+      `/waybills/${encodeURIComponent(waybillNoOrId)}/billings`
     );
   }
 

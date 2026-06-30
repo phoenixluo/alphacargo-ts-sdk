@@ -255,7 +255,10 @@ var Waybills = class {
    *
    * @param waybillNo - Waybill number or external waybill number
    * @returns Full waybill details including packages, recipient, delegations,
-   *          additional (add-on) services, billings, etc.
+   *          additional (add-on) services, billings, etc. For a consolidated
+   *          master waybill, `billings` merges the master's own billings with
+   *          its sub-waybill legs' billings (canceled excluded) — the same set
+   *          `getBillings()` returns — so a separate call isn't needed.
    *
    * @example
    * ```typescript
@@ -263,6 +266,7 @@ var Waybills = class {
    * console.log(waybill.status); // 'accepted'
    * console.log(waybill.packages); // Package details
    * console.log(waybill.recipient?.name); // 'John Doe'
+   * console.log(waybill.billings?.[0]?.amount); // 150
    * ```
    */
   async get(waybillNo) {

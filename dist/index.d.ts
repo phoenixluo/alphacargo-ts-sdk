@@ -248,7 +248,14 @@ interface WaybillDetails {
     updated_at?: string;
     sub_waybills?: unknown[];
     leg?: unknown[];
-    billings?: unknown[];
+    /**
+     * Billing line items for the waybill, joined with rate card, invoice, sender
+     * account and contractor. For a consolidated master waybill this is the merge
+     * of the master's own billings and its sub-waybill legs' billings (the
+     * transport charges live on the legs). Canceled billings are excluded. Same
+     * shape as `client.waybills.getBillings()`.
+     */
+    billings?: WaybillBillingRecord[];
     /** Add-on / additional services attached to the waybill */
     additional_services?: AdditionalService[];
 }
@@ -373,8 +380,9 @@ interface BillingRecord {
 }
 /**
  * A billing record for a waybill, joined with its related entities. Returned by
- * `client.waybills.getBillings()`. For a consolidated master waybill this
- * includes billings from its sub-waybill legs.
+ * `client.waybills.getBillings()` and embedded as the `billings` field of
+ * `client.waybills.get()`. For a consolidated master waybill this includes
+ * billings from its sub-waybill legs.
  */
 interface WaybillBillingRecord {
     id: string;
@@ -1514,7 +1522,10 @@ declare class Waybills {
      *
      * @param waybillNo - Waybill number or external waybill number
      * @returns Full waybill details including packages, recipient, delegations,
-     *          additional (add-on) services, billings, etc.
+     *          additional (add-on) services, billings, etc. For a consolidated
+     *          master waybill, `billings` merges the master's own billings with
+     *          its sub-waybill legs' billings (canceled excluded) — the same set
+     *          `getBillings()` returns — so a separate call isn't needed.
      *
      * @example
      * ```typescript
@@ -1522,6 +1533,7 @@ declare class Waybills {
      * console.log(waybill.status); // 'accepted'
      * console.log(waybill.packages); // Package details
      * console.log(waybill.recipient?.name); // 'John Doe'
+     * console.log(waybill.billings?.[0]?.amount); // 150
      * ```
      */
     get(waybillNo: string): Promise<WaybillDetails>;

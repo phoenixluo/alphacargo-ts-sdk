@@ -277,7 +277,14 @@ export interface WaybillDetails {
   updated_at?: string;
   sub_waybills?: unknown[];
   leg?: unknown[];
-  billings?: unknown[];
+  /**
+   * Billing line items for the waybill, joined with rate card, invoice, sender
+   * account and contractor. For a consolidated master waybill this is the merge
+   * of the master's own billings and its sub-waybill legs' billings (the
+   * transport charges live on the legs). Canceled billings are excluded. Same
+   * shape as `client.waybills.getBillings()`.
+   */
+  billings?: WaybillBillingRecord[];
   /** Add-on / additional services attached to the waybill */
   additional_services?: AdditionalService[];
 }
@@ -421,8 +428,9 @@ export interface BillingRecord {
 
 /**
  * A billing record for a waybill, joined with its related entities. Returned by
- * `client.waybills.getBillings()`. For a consolidated master waybill this
- * includes billings from its sub-waybill legs.
+ * `client.waybills.getBillings()` and embedded as the `billings` field of
+ * `client.waybills.get()`. For a consolidated master waybill this includes
+ * billings from its sub-waybill legs.
  */
 export interface WaybillBillingRecord {
   id: string;

@@ -186,6 +186,9 @@ export interface WaybillSummary {
   status: string;
   latest_station_name: string;
   service_area_name: string;
+  /** Service resolved from the requesting org's delegation. */
+  service_id?: string | null;
+  service_name?: string | null;
   weight: number;
   volume: number;
   volumetric_weight: number;
@@ -279,10 +282,10 @@ export interface WaybillDetails {
   leg?: unknown[];
   /**
    * Billing line items for the waybill, joined with rate card, invoice, sender
-   * account and contractor. For a consolidated master waybill this is the merge
-   * of the master's own billings and its sub-waybill legs' billings (the
-   * transport charges live on the legs). Canceled billings are excluded. Same
-   * shape as `client.waybills.getBillings()`.
+   * account and contractor. For a master waybill this is the merge of the
+   * master's own billings and its sub-waybills' billings (a routed master's
+   * transport charges live on its per-leg sub-waybills). Canceled billings are
+   * excluded. Same shape as `client.waybills.getBillings()`.
    */
   billings?: WaybillBillingRecord[];
   /** Add-on / additional services attached to the waybill */
@@ -429,8 +432,8 @@ export interface BillingRecord {
 /**
  * A billing record for a waybill, joined with its related entities. Returned by
  * `client.waybills.getBillings()` and embedded as the `billings` field of
- * `client.waybills.get()`. For a consolidated master waybill this includes
- * billings from its sub-waybill legs.
+ * `client.waybills.get()`. For a master waybill this includes billings from its
+ * sub-waybills (which carry the per-leg transport charges).
  */
 export interface WaybillBillingRecord {
   id: string;

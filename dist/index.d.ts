@@ -162,6 +162,9 @@ interface WaybillSummary {
     status: string;
     latest_station_name: string;
     service_area_name: string;
+    /** Service resolved from the requesting org's delegation. */
+    service_id?: string | null;
+    service_name?: string | null;
     weight: number;
     volume: number;
     volumetric_weight: number;
@@ -250,10 +253,10 @@ interface WaybillDetails {
     leg?: unknown[];
     /**
      * Billing line items for the waybill, joined with rate card, invoice, sender
-     * account and contractor. For a consolidated master waybill this is the merge
-     * of the master's own billings and its sub-waybill legs' billings (the
-     * transport charges live on the legs). Canceled billings are excluded. Same
-     * shape as `client.waybills.getBillings()`.
+     * account and contractor. For a master waybill this is the merge of the
+     * master's own billings and its sub-waybills' billings (a routed master's
+     * transport charges live on its per-leg sub-waybills). Canceled billings are
+     * excluded. Same shape as `client.waybills.getBillings()`.
      */
     billings?: WaybillBillingRecord[];
     /** Add-on / additional services attached to the waybill */
@@ -381,8 +384,8 @@ interface BillingRecord {
 /**
  * A billing record for a waybill, joined with its related entities. Returned by
  * `client.waybills.getBillings()` and embedded as the `billings` field of
- * `client.waybills.get()`. For a consolidated master waybill this includes
- * billings from its sub-waybill legs.
+ * `client.waybills.get()`. For a master waybill this includes billings from its
+ * sub-waybills (which carry the per-leg transport charges).
  */
 interface WaybillBillingRecord {
     id: string;
@@ -1522,10 +1525,10 @@ declare class Waybills {
      *
      * @param waybillNo - Waybill number or external waybill number
      * @returns Full waybill details including packages, recipient, delegations,
-     *          additional (add-on) services, billings, etc. For a consolidated
-     *          master waybill, `billings` merges the master's own billings with
-     *          its sub-waybill legs' billings (canceled excluded) — the same set
-     *          `getBillings()` returns — so a separate call isn't needed.
+     *          additional (add-on) services, billings, etc. For a master waybill,
+     *          `billings` merges the master's own billings with its sub-waybills'
+     *          billings (canceled excluded) — the same set `getBillings()`
+     *          returns — so a separate call isn't needed.
      *
      * @example
      * ```typescript
@@ -1618,8 +1621,9 @@ declare class Waybills {
     getEvents(waybillNo: string): Promise<WaybillEvents>;
     /**
      * Get billing records for a waybill, joined with rate card, invoice, sender
-     * account and contractor. For a consolidated master waybill this includes the
-     * billings from its sub-waybill legs. Canceled billings are excluded.
+     * account and contractor. For a master waybill this includes the billings from
+     * its sub-waybills (which carry the per-leg transport charges). Canceled
+     * billings are excluded.
      *
      * @param waybillNoOrId - Waybill id (UUID), waybill number, or external waybill number
      * @returns Array of billing records

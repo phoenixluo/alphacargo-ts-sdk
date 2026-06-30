@@ -302,10 +302,10 @@ var Waybills = class {
    *
    * @param waybillNo - Waybill number or external waybill number
    * @returns Full waybill details including packages, recipient, delegations,
-   *          additional (add-on) services, billings, etc. For a consolidated
-   *          master waybill, `billings` merges the master's own billings with
-   *          its sub-waybill legs' billings (canceled excluded) — the same set
-   *          `getBillings()` returns — so a separate call isn't needed.
+   *          additional (add-on) services, billings, etc. For a master waybill,
+   *          `billings` merges the master's own billings with its sub-waybills'
+   *          billings (canceled excluded) — the same set `getBillings()`
+   *          returns — so a separate call isn't needed.
    *
    * @example
    * ```typescript
@@ -410,8 +410,9 @@ var Waybills = class {
   }
   /**
    * Get billing records for a waybill, joined with rate card, invoice, sender
-   * account and contractor. For a consolidated master waybill this includes the
-   * billings from its sub-waybill legs. Canceled billings are excluded.
+   * account and contractor. For a master waybill this includes the billings from
+   * its sub-waybills (which carry the per-leg transport charges). Canceled
+   * billings are excluded.
    *
    * @param waybillNoOrId - Waybill id (UUID), waybill number, or external waybill number
    * @returns Array of billing records

@@ -21,6 +21,7 @@ export {
   OrganizationUnits,
   Wallets,
   Quotes,
+  Address,
 } from './resources';
 
 // Types
@@ -131,6 +132,8 @@ export type {
   UpdateSenderAccountRecipientRequest,
   ListSenderAccountRecipientsParams,
   AddressType,
+  SenderAccountOwnershipRequest,
+  SenderAccountOwnershipResponse,
 
   // Billing Profile
   BillingType,
@@ -159,6 +162,15 @@ export type {
   RegionProvince,
   RegionHierarchy,
   ListRegionsParams,
+
+  // Address Resolution
+  GeocodeSource,
+  AddressResolveOptions,
+  AddressResolveByText,
+  AddressResolveByUrl,
+  AddressResolveByCoords,
+  AddressResolveRequest,
+  ResolvedAddress,
 
   // Organization
   Organization,

@@ -817,6 +817,14 @@ interface ListSenderAccountsParams {
     limit?: number;
     offset?: number;
 }
+interface SenderAccountOwnershipRequest {
+    /** The sender account code read from a package label. */
+    sender_account_code: string;
+}
+interface SenderAccountOwnershipResponse {
+    /** The `api_key` of the organization that owns the sender account. */
+    api_key: string;
+}
 type AddressType = 'pickup' | 'return' | 'billing' | 'warehouse';
 interface SenderAccountRecipient {
     id: string;
@@ -1140,6 +1148,51 @@ interface ListRegionsParams {
     country: string;
     /** Optional postal code to narrow the hierarchy */
     postal_code?: string;
+}
+/** Which geocoding strategy produced a resolved address. */
+type GeocodeSource = 'google_geocoding' | 'google_places' | 'longdo' | 'postal_centroid' | 'province_centroid';
+/** Options shared by every address-resolution input mode. */
+interface AddressResolveOptions {
+    /** ISO alpha-2 country hint; scopes the geocoder's region bias and DB fallbacks. */
+    country?: string;
+    /**
+     * Whether to persist an entry to the address_resolution_logs table.
+     * Defaults to `true`; pass `false` to skip logging.
+     */
+    logResolution?: boolean;
+}
+/** Resolve free-text into structured address fields. */
+interface AddressResolveByText extends AddressResolveOptions {
+    address: string;
+}
+/** Resolve a Google-Maps pin / short link into coordinates. */
+interface AddressResolveByUrl extends AddressResolveOptions {
+    url: string;
+}
+/** Reverse-geocode a shared device location. */
+interface AddressResolveByCoords extends AddressResolveOptions {
+    lat: number;
+    lng: number;
+}
+/**
+ * Address-resolution request. Provide exactly one of `address`, `url`, or
+ * `lat`+`lng`; the response shape is identical across all three modes.
+ */
+type AddressResolveRequest = AddressResolveByText | AddressResolveByUrl | AddressResolveByCoords;
+/** Structured address returned by `client.address.resolve(...)`. */
+interface ResolvedAddress {
+    lat: number;
+    lng: number;
+    country: string | null;
+    province: string | null;
+    district: string | null;
+    subdistrict: string | null;
+    postal_code: string | null;
+    formatted_address: string | null;
+    place_name: string | null;
+    /** Confidence of the resolution, 0–1. */
+    confidence: number;
+    source: GeocodeSource;
 }
 interface Organization {
     id: string;
@@ -2500,6 +2553,31 @@ declare class SenderAccounts {
      * @param recipientId - Recipient ID
      */
     deleteRecipient(id: string, recipientId: string): Promise<void>;
+    /**
+     * Resolve which organization owns a sender account, returning that org's
+     * `api_key`. Intended for a shared-warehouse WMS that receives a package,
+     * reads its sender account code, and needs to know which TMS org (and which
+     * credentials) to call.
+     *
+     * **Auth:** this endpoint requires the non-org-scoped **WMS partner
+     * credential**. Construct the client with the partner `apiKey`/`apiSecret`
+     * (not a regular organization key) — a normal org key returns 401. Returns a
+     * 404 (thrown as `TMSApiError`) when no owning org/secret is found.
+     *
+     * @param code - The sender account code read from the package label
+     * @returns The owning organization's `api_key`
+     *
+     * @example
+     * ```typescript
+     * const partner = new TMSClient({
+     *   baseUrl: 'https://your-domain.com/api',
+     *   apiKey: process.env.WMS_PARTNER_API_KEY!,
+     *   apiSecret: process.env.WMS_PARTNER_API_SECRET!,
+     * });
+     * const { api_key } = await partner.senderAccounts.resolveOwnership('ACME1');
+     * ```
+     */
+    resolveOwnership(code: string): Promise<SenderAccountOwnershipResponse>;
 }
 
 /**
@@ -3087,6 +3165,45 @@ declare class Quotes {
 }
 
 /**
+ * Address resource for resolving locations into structured address fields.
+ */
+declare class Address {
+    private readonly http;
+    constructor(http: HttpClient);
+    /**
+     * Resolve a location into structured address fields (country, province,
+     * district, subdistrict, postal code, coordinates). Provide exactly one of
+     * three input modes — the response shape is identical across all of them:
+     *
+     *   - `{ address }`      → free-text geocode cascade
+     *   - `{ url }`          → Google-Maps pin / short link → coordinates
+     *   - `{ lat, lng }`     → reverse-geocode a shared device location
+     *
+     * @param request - One of the three input modes, plus optional `country`
+     *   (ISO alpha-2 hint) and `logResolution` (defaults to `true`).
+     * @returns The resolved address. Throws `TMSApiError` with status `404` when
+     *   the location could not be resolved, or `400` for invalid input.
+     *
+     * @example
+     * ```typescript
+     * // Free-text
+     * const a = await client.address.resolve({
+     *   address: '123 Sukhumvit Rd, Bangkok',
+     *   country: 'TH',
+     * });
+     *
+     * // Google-Maps link
+     * const b = await client.address.resolve({ url: 'https://maps.app.goo.gl/xyz' });
+     *
+     * // Reverse-geocode coordinates
+     * const c = await client.address.resolve({ lat: 13.7563, lng: 100.5018 });
+     * console.log(c.province, c.postal_code);
+     * ```
+     */
+    resolve(request: AddressResolveRequest): Promise<ResolvedAddress>;
+}
+
+/**
  * TMS API Client
  *
  * The main entry point for interacting with the TMS API.
@@ -3174,6 +3291,10 @@ declare class TMSClient {
      */
     readonly quotes: Quotes;
     /**
+     * Address resource for resolving locations into structured address fields
+     */
+    readonly address: Address;
+    /**
      * Create a new TMS API client
      *
      * @param config - Client configuration
@@ -3191,4 +3312,4 @@ declare class TMSClient {
     constructor(config: TMSClientConfig);
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };

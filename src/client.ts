@@ -15,6 +15,7 @@ import {
   OrganizationUnits,
   Wallets,
   Quotes,
+  Address,
 } from './resources';
 import type { TMSClientConfig } from './types';
 
@@ -122,6 +123,11 @@ export class TMSClient {
   public readonly quotes: Quotes;
 
   /**
+   * Address resource for resolving locations into structured address fields
+   */
+  public readonly address: Address;
+
+  /**
    * Create a new TMS API client
    *
    * @param config - Client configuration
@@ -165,5 +171,6 @@ export class TMSClient {
     this.organizationUnits = new OrganizationUnits(this.http);
     this.wallets = new Wallets(this.http);
     this.quotes = new Quotes(this.http);
+    this.address = new Address(this.http);
   }
 }

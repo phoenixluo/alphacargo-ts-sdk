@@ -20,6 +20,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  Address: () => Address,
   BillingProfiles: () => BillingProfiles,
   Billings: () => Billings,
   DeliveryEvents: () => DeliveryEvents,
@@ -1437,6 +1438,38 @@ var SenderAccounts = class {
       `/sender-accounts/${encodeURIComponent(id)}/recipients/${encodeURIComponent(recipientId)}`
     );
   }
+  // ---- Ownership (partner credential) ----
+  /**
+   * Resolve which organization owns a sender account, returning that org's
+   * `api_key`. Intended for a shared-warehouse WMS that receives a package,
+   * reads its sender account code, and needs to know which TMS org (and which
+   * credentials) to call.
+   *
+   * **Auth:** this endpoint requires the non-org-scoped **WMS partner
+   * credential**. Construct the client with the partner `apiKey`/`apiSecret`
+   * (not a regular organization key) — a normal org key returns 401. Returns a
+   * 404 (thrown as `TMSApiError`) when no owning org/secret is found.
+   *
+   * @param code - The sender account code read from the package label
+   * @returns The owning organization's `api_key`
+   *
+   * @example
+   * ```typescript
+   * const partner = new TMSClient({
+   *   baseUrl: 'https://your-domain.com/api',
+   *   apiKey: process.env.WMS_PARTNER_API_KEY!,
+   *   apiSecret: process.env.WMS_PARTNER_API_SECRET!,
+   * });
+   * const { api_key } = await partner.senderAccounts.resolveOwnership('ACME1');
+   * ```
+   */
+  async resolveOwnership(code) {
+    const body = { sender_account_code: code };
+    return this.http.post(
+      "/sender-account/ownership",
+      body
+    );
+  }
 };
 
 // src/resources/billing-profiles.ts
@@ -2111,6 +2144,49 @@ var Quotes = class {
   }
 };
 
+// src/resources/address.ts
+var Address = class {
+  constructor(http) {
+    this.http = http;
+  }
+  /**
+   * Resolve a location into structured address fields (country, province,
+   * district, subdistrict, postal code, coordinates). Provide exactly one of
+   * three input modes — the response shape is identical across all of them:
+   *
+   *   - `{ address }`      → free-text geocode cascade
+   *   - `{ url }`          → Google-Maps pin / short link → coordinates
+   *   - `{ lat, lng }`     → reverse-geocode a shared device location
+   *
+   * @param request - One of the three input modes, plus optional `country`
+   *   (ISO alpha-2 hint) and `logResolution` (defaults to `true`).
+   * @returns The resolved address. Throws `TMSApiError` with status `404` when
+   *   the location could not be resolved, or `400` for invalid input.
+   *
+   * @example
+   * ```typescript
+   * // Free-text
+   * const a = await client.address.resolve({
+   *   address: '123 Sukhumvit Rd, Bangkok',
+   *   country: 'TH',
+   * });
+   *
+   * // Google-Maps link
+   * const b = await client.address.resolve({ url: 'https://maps.app.goo.gl/xyz' });
+   *
+   * // Reverse-geocode coordinates
+   * const c = await client.address.resolve({ lat: 13.7563, lng: 100.5018 });
+   * console.log(c.province, c.postal_code);
+   * ```
+   */
+  async resolve(request) {
+    return this.http.post(
+      "/address/resolve",
+      request
+    );
+  }
+};
+
 // src/client.ts
 var TMSClient = class {
   /**
@@ -2154,10 +2230,12 @@ var TMSClient = class {
     this.organizationUnits = new OrganizationUnits(this.http);
     this.wallets = new Wallets(this.http);
     this.quotes = new Quotes(this.http);
+    this.address = new Address(this.http);
   }
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  Address,
   BillingProfiles,
   Billings,
   DeliveryEvents,

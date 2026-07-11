@@ -8,6 +8,8 @@ import type {
   CreateSenderAccountRecipientRequest,
   UpdateSenderAccountRecipientRequest,
   ListSenderAccountRecipientsParams,
+  SenderAccountOwnershipRequest,
+  SenderAccountOwnershipResponse,
 } from '../types';
 
 interface ListSenderAccountsResponse {
@@ -211,6 +213,40 @@ export class SenderAccounts {
   async deleteRecipient(id: string, recipientId: string): Promise<void> {
     await this.http.delete(
       `/sender-accounts/${encodeURIComponent(id)}/recipients/${encodeURIComponent(recipientId)}`
+    );
+  }
+
+  // ---- Ownership (partner credential) ----
+
+  /**
+   * Resolve which organization owns a sender account, returning that org's
+   * `api_key`. Intended for a shared-warehouse WMS that receives a package,
+   * reads its sender account code, and needs to know which TMS org (and which
+   * credentials) to call.
+   *
+   * **Auth:** this endpoint requires the non-org-scoped **WMS partner
+   * credential**. Construct the client with the partner `apiKey`/`apiSecret`
+   * (not a regular organization key) — a normal org key returns 401. Returns a
+   * 404 (thrown as `TMSApiError`) when no owning org/secret is found.
+   *
+   * @param code - The sender account code read from the package label
+   * @returns The owning organization's `api_key`
+   *
+   * @example
+   * ```typescript
+   * const partner = new TMSClient({
+   *   baseUrl: 'https://your-domain.com/api',
+   *   apiKey: process.env.WMS_PARTNER_API_KEY!,
+   *   apiSecret: process.env.WMS_PARTNER_API_SECRET!,
+   * });
+   * const { api_key } = await partner.senderAccounts.resolveOwnership('ACME1');
+   * ```
+   */
+  async resolveOwnership(code: string): Promise<SenderAccountOwnershipResponse> {
+    const body: SenderAccountOwnershipRequest = { sender_account_code: code };
+    return this.http.post<SenderAccountOwnershipResponse>(
+      '/sender-account/ownership',
+      body as unknown as Record<string, unknown>
     );
   }
 

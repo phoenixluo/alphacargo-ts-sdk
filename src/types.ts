@@ -919,6 +919,18 @@ export interface ListSenderAccountsParams {
   offset?: number;
 }
 
+// --- Sender Account Ownership (partner credential) ---
+
+export interface SenderAccountOwnershipRequest {
+  /** The sender account code read from a package label. */
+  sender_account_code: string;
+}
+
+export interface SenderAccountOwnershipResponse {
+  /** The `api_key` of the organization that owns the sender account. */
+  api_key: string;
+}
+
 // --- Sender Account Recipients ---
 
 export type AddressType = 'pickup' | 'return' | 'billing' | 'warehouse';
@@ -1322,6 +1334,70 @@ export interface ListRegionsParams {
   country: string;
   /** Optional postal code to narrow the hierarchy */
   postal_code?: string;
+}
+
+// ============================================================================
+// Address Resolution Types
+// ============================================================================
+
+/** Which geocoding strategy produced a resolved address. */
+export type GeocodeSource =
+  | 'google_geocoding'
+  | 'google_places'
+  | 'longdo'
+  | 'postal_centroid'
+  | 'province_centroid';
+
+/** Options shared by every address-resolution input mode. */
+export interface AddressResolveOptions {
+  /** ISO alpha-2 country hint; scopes the geocoder's region bias and DB fallbacks. */
+  country?: string;
+  /**
+   * Whether to persist an entry to the address_resolution_logs table.
+   * Defaults to `true`; pass `false` to skip logging.
+   */
+  logResolution?: boolean;
+}
+
+/** Resolve free-text into structured address fields. */
+export interface AddressResolveByText extends AddressResolveOptions {
+  address: string;
+}
+
+/** Resolve a Google-Maps pin / short link into coordinates. */
+export interface AddressResolveByUrl extends AddressResolveOptions {
+  url: string;
+}
+
+/** Reverse-geocode a shared device location. */
+export interface AddressResolveByCoords extends AddressResolveOptions {
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Address-resolution request. Provide exactly one of `address`, `url`, or
+ * `lat`+`lng`; the response shape is identical across all three modes.
+ */
+export type AddressResolveRequest =
+  | AddressResolveByText
+  | AddressResolveByUrl
+  | AddressResolveByCoords;
+
+/** Structured address returned by `client.address.resolve(...)`. */
+export interface ResolvedAddress {
+  lat: number;
+  lng: number;
+  country: string | null;
+  province: string | null;
+  district: string | null;
+  subdistrict: string | null;
+  postal_code: string | null;
+  formatted_address: string | null;
+  place_name: string | null;
+  /** Confidence of the resolution, 0–1. */
+  confidence: number;
+  source: GeocodeSource;
 }
 
 // ============================================================================

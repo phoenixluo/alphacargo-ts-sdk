@@ -17,7 +17,7 @@ import {
   Quotes,
   Address,
 } from './resources';
-import type { TMSClientConfig } from './types';
+import type { TMSClientConfig, TMSLanguage } from './types';
 
 /**
  * TMS API Client
@@ -46,6 +46,7 @@ import type { TMSClientConfig } from './types';
  */
 export class TMSClient {
   private readonly http: HttpClient;
+  private readonly config: TMSClientConfig;
 
   /**
    * Waybills resource for managing shipping orders
@@ -153,6 +154,7 @@ export class TMSClient {
       throw new Error('apiSecret is required');
     }
 
+    this.config = config;
     this.http = new HttpClient(config);
 
     // Initialize resources
@@ -172,5 +174,34 @@ export class TMSClient {
     this.wallets = new Wallets(this.http);
     this.quotes = new Quotes(this.http);
     this.address = new Address(this.http);
+  }
+
+  /**
+   * Set the preferred language for localized API error messages (sent as the
+   * `Accept-Language` header) on this client, affecting all subsequent requests.
+   * Pass `undefined` to clear it (server defaults to English).
+   *
+   * @example
+   * ```typescript
+   * client.setLanguage('zh'); // error messages now returned in Chinese
+   * ```
+   */
+  setLanguage(language?: TMSLanguage): void {
+    this.http.setLanguage(language);
+  }
+
+  /**
+   * Create a new client scoped to a different language for localized error
+   * messages, leaving this client unchanged. Useful for a single request or a
+   * per-user-request handler.
+   *
+   * @example
+   * ```typescript
+   * const zhClient = client.withLanguage('zh');
+   * await zhClient.waybills.get('UNKNOWN'); // error message in Chinese
+   * ```
+   */
+  withLanguage(language?: TMSLanguage): TMSClient {
+    return new TMSClient({ ...this.config, language });
   }
 }

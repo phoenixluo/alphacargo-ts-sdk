@@ -28,6 +28,7 @@ export {
 export type {
   // Configuration
   TMSClientConfig,
+  TMSLanguage,
   TMSError,
 
   // Common

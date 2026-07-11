@@ -1619,6 +1619,14 @@ export interface CreateQuoteResponse {
 // SDK Configuration Types
 // ============================================================================
 
+/**
+ * Language for localized API error messages, sent as the `Accept-Language`
+ * header. The API supports English, Thai, and Chinese; any other value falls
+ * back to English on the server. Only error messages are localized — response
+ * shapes, HTTP status codes, and legacy numeric codes are unaffected.
+ */
+export type TMSLanguage = 'en' | 'th' | 'zh' | (string & {});
+
 export interface TMSClientConfig {
   /**
    * Base URL of the TMS API
@@ -1642,7 +1650,17 @@ export interface TMSClientConfig {
   timeout?: number;
 
   /**
-   * Custom headers to include in all requests
+   * Preferred language for localized error messages, sent as the
+   * `Accept-Language` header on every request. Defaults to English when
+   * omitted. Can be overridden per-client with {@link TMSClient.setLanguage}
+   * or scoped with {@link TMSClient.withLanguage}.
+   * @example 'zh'
+   */
+  language?: TMSLanguage;
+
+  /**
+   * Custom headers to include in all requests. A header set here takes
+   * precedence over the one derived from `language`.
    */
   headers?: Record<string, string>;
 }

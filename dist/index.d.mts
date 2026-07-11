@@ -1402,6 +1402,13 @@ interface CreateQuoteResponse {
     /** Price breakdown: the base fare followed by any add-on lines. */
     breakdown: QuoteBreakdownLine[];
 }
+/**
+ * Language for localized API error messages, sent as the `Accept-Language`
+ * header. The API supports English, Thai, and Chinese; any other value falls
+ * back to English on the server. Only error messages are localized — response
+ * shapes, HTTP status codes, and legacy numeric codes are unaffected.
+ */
+type TMSLanguage = 'en' | 'th' | 'zh' | (string & {});
 interface TMSClientConfig {
     /**
      * Base URL of the TMS API
@@ -1421,7 +1428,16 @@ interface TMSClientConfig {
      */
     timeout?: number;
     /**
-     * Custom headers to include in all requests
+     * Preferred language for localized error messages, sent as the
+     * `Accept-Language` header on every request. Defaults to English when
+     * omitted. Can be overridden per-client with {@link TMSClient.setLanguage}
+     * or scoped with {@link TMSClient.withLanguage}.
+     * @example 'zh'
+     */
+    language?: TMSLanguage;
+    /**
+     * Custom headers to include in all requests. A header set here takes
+     * precedence over the one derived from `language`.
      */
     headers?: Record<string, string>;
 }
@@ -1498,7 +1514,14 @@ declare class HttpClient {
     private readonly apiSecret;
     private readonly timeout;
     private readonly headers;
+    private language?;
     constructor(config: TMSClientConfig);
+    /**
+     * Set the preferred language for localized error messages (sent as the
+     * `Accept-Language` header). Pass `undefined` to clear it (server defaults
+     * to English).
+     */
+    setLanguage(language?: string): void;
     /**
      * Sign request body with HMAC signature
      */
@@ -3230,6 +3253,7 @@ declare class Address {
  */
 declare class TMSClient {
     private readonly http;
+    private readonly config;
     /**
      * Waybills resource for managing shipping orders
      */
@@ -3310,6 +3334,29 @@ declare class TMSClient {
      * ```
      */
     constructor(config: TMSClientConfig);
+    /**
+     * Set the preferred language for localized API error messages (sent as the
+     * `Accept-Language` header) on this client, affecting all subsequent requests.
+     * Pass `undefined` to clear it (server defaults to English).
+     *
+     * @example
+     * ```typescript
+     * client.setLanguage('zh'); // error messages now returned in Chinese
+     * ```
+     */
+    setLanguage(language?: TMSLanguage): void;
+    /**
+     * Create a new client scoped to a different language for localized error
+     * messages, leaving this client unchanged. Useful for a single request or a
+     * per-user-request handler.
+     *
+     * @example
+     * ```typescript
+     * const zhClient = client.withLanguage('zh');
+     * await zhClient.waybills.get('UNKNOWN'); // error message in Chinese
+     * ```
+     */
+    withLanguage(language?: TMSLanguage): TMSClient;
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };

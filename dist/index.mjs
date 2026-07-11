@@ -93,6 +93,15 @@ var HttpClient = class {
     this.apiSecret = config.apiSecret;
     this.timeout = config.timeout ?? 3e4;
     this.headers = config.headers ?? {};
+    this.language = config.language;
+  }
+  /**
+   * Set the preferred language for localized error messages (sent as the
+   * `Accept-Language` header). Pass `undefined` to clear it (server defaults
+   * to English).
+   */
+  setLanguage(language) {
+    this.language = language;
   }
   /**
    * Sign request body with HMAC signature
@@ -117,6 +126,9 @@ var HttpClient = class {
     const sign = options?.sign ?? true;
     const headers = {
       "Content-Type": "application/json",
+      // Localize error messages when a language is configured. Explicit custom
+      // headers still win, since they are spread last.
+      ...this.language ? { "Accept-Language": this.language } : {},
       ...this.headers
     };
     const fetchOptions = {
@@ -2140,7 +2152,7 @@ var Address = class {
 };
 
 // src/client.ts
-var TMSClient = class {
+var TMSClient = class _TMSClient {
   /**
    * Create a new TMS API client
    *
@@ -2166,6 +2178,7 @@ var TMSClient = class {
     if (!config.apiSecret) {
       throw new Error("apiSecret is required");
     }
+    this.config = config;
     this.http = new HttpClient(config);
     this.waybills = new Waybills(this.http);
     this.billings = new Billings(this.http);
@@ -2183,6 +2196,33 @@ var TMSClient = class {
     this.wallets = new Wallets(this.http);
     this.quotes = new Quotes(this.http);
     this.address = new Address(this.http);
+  }
+  /**
+   * Set the preferred language for localized API error messages (sent as the
+   * `Accept-Language` header) on this client, affecting all subsequent requests.
+   * Pass `undefined` to clear it (server defaults to English).
+   *
+   * @example
+   * ```typescript
+   * client.setLanguage('zh'); // error messages now returned in Chinese
+   * ```
+   */
+  setLanguage(language) {
+    this.http.setLanguage(language);
+  }
+  /**
+   * Create a new client scoped to a different language for localized error
+   * messages, leaving this client unchanged. Useful for a single request or a
+   * per-user-request handler.
+   *
+   * @example
+   * ```typescript
+   * const zhClient = client.withLanguage('zh');
+   * await zhClient.waybills.get('UNKNOWN'); // error message in Chinese
+   * ```
+   */
+  withLanguage(language) {
+    return new _TMSClient({ ...this.config, language });
   }
 };
 export {

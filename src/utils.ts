@@ -179,6 +179,7 @@ export class HttpClient {
   private readonly apiSecret: string;
   private readonly timeout: number;
   private readonly headers: Record<string, string>;
+  private language?: string;
 
   constructor(config: TMSClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
@@ -186,6 +187,16 @@ export class HttpClient {
     this.apiSecret = config.apiSecret;
     this.timeout = config.timeout ?? 30000;
     this.headers = config.headers ?? {};
+    this.language = config.language;
+  }
+
+  /**
+   * Set the preferred language for localized error messages (sent as the
+   * `Accept-Language` header). Pass `undefined` to clear it (server defaults
+   * to English).
+   */
+  setLanguage(language?: string): void {
+    this.language = language;
   }
 
   /**
@@ -221,6 +232,9 @@ export class HttpClient {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      // Localize error messages when a language is configured. Explicit custom
+      // headers still win, since they are spread last.
+      ...(this.language ? { 'Accept-Language': this.language } : {}),
       ...this.headers,
     };
 

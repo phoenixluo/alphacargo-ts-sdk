@@ -79,7 +79,40 @@ console.log('Waybill created:', waybill.waybill_no);
 | `apiKey` | string | Yes | Your API key (merchant ID) |
 | `apiSecret` | string | Yes | Your API secret for signature generation |
 | `timeout` | number | No | Request timeout in ms (default: 30000) |
+| `language` | string | No | Preferred language for error messages (`en`, `th`, `zh`). Sent as `Accept-Language`. Defaults to English. |
 | `headers` | object | No | Custom headers to include in all requests |
+
+### Localized error messages
+
+API error messages can be returned in English (`en`), Thai (`th`), or Chinese
+(`zh`). Set `language` on the client, or override it per client/request. Only the
+error message text is localized — response shapes and codes are unchanged. If
+`language` is omitted, messages are returned in English.
+
+```typescript
+// Set once for the whole client
+const client = new TMSClient({
+  baseUrl: 'https://your-domain.com/api',
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  language: 'zh',
+});
+
+try {
+  await client.waybills.get('UNKNOWN123');
+} catch (err) {
+  if (err instanceof TMSApiError) {
+    console.log(err.message); // "运单不存在"
+  }
+}
+
+// Change it later
+client.setLanguage('th');
+
+// Or scope a single call without mutating the original client
+const zhClient = client.withLanguage('zh');
+await zhClient.waybills.get('UNKNOWN123');
+```
 
 ## Available Resources
 

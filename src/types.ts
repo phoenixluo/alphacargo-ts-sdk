@@ -47,6 +47,12 @@ export interface Parcel {
   width?: number;
   length?: number;
   height?: number;
+  /**
+   * Number of identical pieces this parcel represents as one lot. Defaults to 1.
+   * Only honored when the waybill is created with `autoSplit: false` — otherwise
+   * each product unit becomes its own package.
+   */
+  piece_count?: number;
   productList: Product[];
   photos?: string[];
 }
@@ -94,6 +100,14 @@ export interface CreateWaybillRequest {
   estimatedWeight?: number;
   /** Estimated total volume (m³) for billing when actual values are unavailable (e.g. consolidation) */
   estimatedVolume?: number;
+  /** Total volumetric weight (kg) for the whole waybill. Callers sending a lot of
+   *  N identical pieces should supply the already-multiplied total. */
+  volumetricWeight?: number;
+  /**
+   * When true (default), each product unit in a parcel becomes its own package.
+   * Pass false to persist each parcel as a single package carrying `piece_count`
+   * (a lot of N identical pieces). */
+  autoSplit?: boolean;
 }
 
 export type WaybillOverwriteBehavior = 'overwrite' | 'return_existing' | 'reject' | 'return_if_accepted';
@@ -113,6 +127,12 @@ export interface CreateWaybillResponse {
   external_waybill_no: string;
   status: string;
   packages: WaybillPackage[];
+}
+
+/** Response from POST /waybills/allocate-number. */
+export interface AllocateWaybillNumberResponse {
+  /** The reserved number in the org's format, e.g. 'ABC1A748213905'. */
+  number: string;
 }
 
 export interface UpdateWaybillRequest {
@@ -306,6 +326,28 @@ export interface AddPackageResponse {
   package_no: string;
   external_package_no: string;
   waybill_id: string;
+}
+
+/** One resulting package of a split — its own dimensions/weight (piece_count 1). */
+export interface SplitPart {
+  outParcelNo?: string;
+  weight: number;
+  length: number;
+  width: number;
+  height: number;
+  notes?: string;
+  photos?: string[];
+}
+
+export interface SplitPackageRequest {
+  /** At least two parts — the real packages the lot is split into. */
+  parts: SplitPart[];
+}
+
+export interface SplitPackageResponse {
+  waybillNo: string;
+  canceledPackageNo: string;
+  packages: { packageNo: string; id: string }[];
 }
 
 // --- Sender Account OCR ---

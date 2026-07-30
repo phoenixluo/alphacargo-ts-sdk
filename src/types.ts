@@ -800,12 +800,20 @@ export interface WalletTransaction {
   created_at: string;
 }
 
+/** FlashPay top-up funding methods. */
+export type WalletTopUpType = 'qr' | 'app' | 'wechat';
+
 export interface TopUpWalletRequest {
   sender_account_id: string;
   amount: number;
-  flashpay_type: FlashPayType;
+  flashpay_type: WalletTopUpType;
   /** Required when flashpay_type is 'app' — Thai bank code. */
   flashpay_bank_code?: string;
+  /**
+   * Required when flashpay_type is 'wechat' — the payer's WeChat openId in the
+   * merchant mini-program (resolved by the caller from the WeChat session).
+   */
+  open_id?: string;
   description?: string;
 }
 
@@ -824,7 +832,29 @@ export interface WalletTopUpAppResponse {
   deeplink_url: string;
 }
 
-export type WalletTopUpResponse = WalletTopUpQRResponse | WalletTopUpAppResponse;
+/**
+ * Params the mini-program passes to `wx.requestPayment`, mapped from FlashPay's
+ * `wechatAppletParam`. `package` carries FlashPay's `prepayId`.
+ */
+export interface WeChatAppletPaymentParams {
+  time_stamp: string;
+  nonce_str: string;
+  package: string;
+  sign_type: string;
+  pay_sign: string;
+}
+
+export interface WalletTopUpWeChatResponse {
+  type: 'wechat';
+  payment_id: string;
+  trade_no: string;
+  wechat_payment: WeChatAppletPaymentParams;
+}
+
+export type WalletTopUpResponse =
+  | WalletTopUpQRResponse
+  | WalletTopUpAppResponse
+  | WalletTopUpWeChatResponse;
 
 export interface PayInvoiceWithWalletRequest {
   sender_account_id: string;

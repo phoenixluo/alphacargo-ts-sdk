@@ -33,6 +33,7 @@ __export(index_exports, {
   Regions: () => Regions,
   Reports: () => Reports,
   SenderAccounts: () => SenderAccounts,
+  ShippingFee: () => ShippingFee,
   TMSApiError: () => TMSApiError,
   TMSClient: () => TMSClient,
   Wallets: () => Wallets,
@@ -374,27 +375,6 @@ var Waybills = class {
     });
   }
   /**
-   * Reserve the next waybill number in the organization's configured format
-   * WITHOUT creating a waybill. Used to mint a number for a loose, barcode-less
-   * package so a scannable label can be printed before the package is
-   * inbounded; the number later arrives as the package's external reference
-   * (outTradeNo) at inbound.
-   *
-   * Requires the organization to have enabled custom waybill numbering in its
-   * settings — otherwise the call fails with a 409.
-   *
-   * @returns The allocated number, e.g. `{ number: 'ABC1A748213905' }`
-   *
-   * @example
-   * ```typescript
-   * const { number } = await client.waybills.allocateNumber();
-   * console.log(number); // 'ABC1A748213905'
-   * ```
-   */
-  async allocateNumber() {
-    return this.http.post("/waybills/allocate-number", {});
-  }
-  /**
    * Cancel a waybill
    *
    * @param waybillNo - Waybill number or external waybill number
@@ -548,32 +528,6 @@ var Waybills = class {
   async addPackage(waybillNo, data) {
     return this.http.post(
       `/waybills/${encodeURIComponent(waybillNo)}/packages`,
-      data
-    );
-  }
-  /**
-   * Split one package on a waybill into multiple packages — the misoperation
-   * recovery for a lot (piece_count > 1) that actually holds NON-identical items.
-   * Each part becomes its own package (piece_count 1); the original combined
-   * package is canceled and the waybill totals are recomputed.
-   *
-   * @param waybillNo - Waybill number or external waybill number
-   * @param packageNo - The combined package's number to split
-   * @param data - The parts (at least two) to split into
-   *
-   * @example
-   * ```typescript
-   * await client.waybills.splitPackage('TH24020001', 'TH24020001A1', {
-   *   parts: [
-   *     { weight: 2, length: 10, width: 10, height: 10 },
-   *     { weight: 3, length: 20, width: 15, height: 12 },
-   *   ],
-   * });
-   * ```
-   */
-  async splitPackage(waybillNo, packageNo, data) {
-    return this.http.post(
-      `/waybills/${encodeURIComponent(waybillNo)}/packages/${encodeURIComponent(packageNo)}/split`,
       data
     );
   }
@@ -2246,6 +2200,37 @@ var Address = class {
   }
 };
 
+// src/resources/shipping-fee.ts
+var ShippingFee = class {
+  constructor(http) {
+    this.http = http;
+  }
+  /**
+   * Estimate the forwarding fee for a parcel to a destination postal code.
+   *
+   * @param data - Service, weight/dimensions, add-ons, and destination postal code.
+   * @returns The priced estimate `{ cost, currency, service_name, chargeable_weight, breakdown }`.
+   *
+   * @example
+   * ```typescript
+   * const quote = await client.shippingFee.calculate({
+   *   service_id: 'svc-uuid',
+   *   weight_kg: 12.5,
+   *   dimensions: { length_cm: 40, width_cm: 30, height_cm: 20 },
+   *   destination_postal_code: '10110',
+   *   country: 'TH',
+   * });
+   * console.log(quote.cost, quote.currency); // 375 THB
+   * ```
+   */
+  async calculate(data) {
+    return this.http.post(
+      "/shipping-fee",
+      data
+    );
+  }
+};
+
 // src/client.ts
 var TMSClient = class _TMSClient {
   /**
@@ -2291,6 +2276,7 @@ var TMSClient = class _TMSClient {
     this.wallets = new Wallets(this.http);
     this.quotes = new Quotes(this.http);
     this.address = new Address(this.http);
+    this.shippingFee = new ShippingFee(this.http);
   }
   /**
    * Set the preferred language for localized API error messages (sent as the
@@ -2335,6 +2321,7 @@ var TMSClient = class _TMSClient {
   Regions,
   Reports,
   SenderAccounts,
+  ShippingFee,
   TMSApiError,
   TMSClient,
   Wallets,

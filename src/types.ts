@@ -47,12 +47,6 @@ export interface Parcel {
   width?: number;
   length?: number;
   height?: number;
-  /**
-   * Number of identical pieces this parcel represents as one lot. Defaults to 1.
-   * Only honored when the waybill is created with `autoSplit: false` — otherwise
-   * each product unit becomes its own package.
-   */
-  piece_count?: number;
   productList: Product[];
   photos?: string[];
 }
@@ -100,14 +94,6 @@ export interface CreateWaybillRequest {
   estimatedWeight?: number;
   /** Estimated total volume (m³) for billing when actual values are unavailable (e.g. consolidation) */
   estimatedVolume?: number;
-  /** Total volumetric weight (kg) for the whole waybill. Callers sending a lot of
-   *  N identical pieces should supply the already-multiplied total. */
-  volumetricWeight?: number;
-  /**
-   * When true (default), each product unit in a parcel becomes its own package.
-   * Pass false to persist each parcel as a single package carrying `piece_count`
-   * (a lot of N identical pieces). */
-  autoSplit?: boolean;
 }
 
 export type WaybillOverwriteBehavior = 'overwrite' | 'return_existing' | 'reject' | 'return_if_accepted';
@@ -127,12 +113,6 @@ export interface CreateWaybillResponse {
   external_waybill_no: string;
   status: string;
   packages: WaybillPackage[];
-}
-
-/** Response from POST /waybills/allocate-number. */
-export interface AllocateWaybillNumberResponse {
-  /** The reserved number in the org's format, e.g. 'ABC1A748213905'. */
-  number: string;
 }
 
 export interface UpdateWaybillRequest {
@@ -222,7 +202,7 @@ export interface WaybillSummary {
   billing_total?: number;
   /** Payment status derived from billings: "paid" when all non-canceled billings are paid, otherwise "unpaid". */
   payment_status?: string;
-  /** True when this waybill is a consolidation parent (has consolidated sub-waybills, i.e. child legs with route_leg_id IS NULL). */
+  /** True when this waybill is a consolidation parent (a master created by waybill consolidation). */
   is_consolidated?: boolean;
 }
 
@@ -326,28 +306,6 @@ export interface AddPackageResponse {
   package_no: string;
   external_package_no: string;
   waybill_id: string;
-}
-
-/** One resulting package of a split — its own dimensions/weight (piece_count 1). */
-export interface SplitPart {
-  outParcelNo?: string;
-  weight: number;
-  length: number;
-  width: number;
-  height: number;
-  notes?: string;
-  photos?: string[];
-}
-
-export interface SplitPackageRequest {
-  /** At least two parts — the real packages the lot is split into. */
-  parts: SplitPart[];
-}
-
-export interface SplitPackageResponse {
-  waybillNo: string;
-  canceledPackageNo: string;
-  packages: { packageNo: string; id: string }[];
 }
 
 // --- Sender Account OCR ---
@@ -800,12 +758,20 @@ export interface WalletTransaction {
   created_at: string;
 }
 
+/** FlashPay top-up funding methods. */
+export type WalletTopUpType = 'qr' | 'app' | 'wechat';
+
 export interface TopUpWalletRequest {
   sender_account_id: string;
   amount: number;
-  flashpay_type: FlashPayType;
+  flashpay_type: WalletTopUpType;
   /** Required when flashpay_type is 'app' — Thai bank code. */
   flashpay_bank_code?: string;
+  /**
+   * Required when flashpay_type is 'wechat' — the payer's WeChat openId in the
+   * merchant mini-program (resolved by the caller from the WeChat session).
+   */
+  open_id?: string;
   description?: string;
 }
 
@@ -824,7 +790,29 @@ export interface WalletTopUpAppResponse {
   deeplink_url: string;
 }
 
-export type WalletTopUpResponse = WalletTopUpQRResponse | WalletTopUpAppResponse;
+/**
+ * Params the mini-program passes to `wx.requestPayment`, mapped from FlashPay's
+ * `wechatAppletParam`. `package` carries FlashPay's `prepayId`.
+ */
+export interface WeChatAppletPaymentParams {
+  time_stamp: string;
+  nonce_str: string;
+  package: string;
+  sign_type: string;
+  pay_sign: string;
+}
+
+export interface WalletTopUpWeChatResponse {
+  type: 'wechat';
+  payment_id: string;
+  trade_no: string;
+  wechat_payment: WeChatAppletPaymentParams;
+}
+
+export type WalletTopUpResponse =
+  | WalletTopUpQRResponse
+  | WalletTopUpAppResponse
+  | WalletTopUpWeChatResponse;
 
 export interface PayInvoiceWithWalletRequest {
   sender_account_id: string;
@@ -1655,6 +1643,56 @@ export interface CreateQuoteResponse {
   expires_at: string;
   /** Price breakdown: the base fare followed by any add-on lines. */
   breakdown: QuoteBreakdownLine[];
+}
+
+// ============================================================================
+// Shipping Fee Types
+// ============================================================================
+
+export interface ShippingFeeDimensions {
+  length_cm: number;
+  width_cm: number;
+  height_cm: number;
+}
+
+export interface CreateShippingFeeRequest {
+  /** The transport-mode service to price (a shipping-service id). */
+  service_id: string;
+  /** Actual weight in kilograms. */
+  weight_kg: number;
+  /** Optional box dimensions (cm) — used to derive volume and volumetric weight. */
+  dimensions?: ShippingFeeDimensions | null;
+  /** Piece count for per_package rate cards. Defaults to 1 server-side. */
+  package_count?: number;
+  /** Extra service ids to price alongside the primary (e.g. wooden crate). */
+  addon_service_ids?: string[];
+  /** Recipient postal code — resolves the destination service area / route. */
+  destination_postal_code: string;
+  /** ISO country of the destination. Defaults to "TH" server-side. */
+  country?: string;
+  /**
+   * The company's before-consolidation route id (supplied server-side from
+   * credentials, not by the app). Priced as one leg; its terminal end unit is
+   * the start of the after-consolidation delivery route.
+   */
+  before_consolidation_route_id?: string | null;
+}
+
+export interface ShippingFeeBreakdownLine {
+  label: string;
+  amount: number;
+}
+
+export interface ShippingFeeResponse {
+  /** Total estimated fee (primary service + any add-ons), in `currency`. */
+  cost: number;
+  /** ISO 4217 currency of `cost` (defaults to THB). */
+  currency: string;
+  /** Human label for the primary service (the priced rate card's name). */
+  service_name: string;
+  /** The weight the primary card was charged on (max of actual & volumetric). */
+  chargeable_weight: number;
+  breakdown: ShippingFeeBreakdownLine[];
 }
 
 // ============================================================================

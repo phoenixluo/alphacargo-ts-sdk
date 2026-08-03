@@ -16,6 +16,7 @@ import {
   Wallets,
   Quotes,
   Address,
+  ShippingFee,
 } from './resources';
 import type { TMSClientConfig, TMSLanguage } from './types';
 
@@ -129,6 +130,11 @@ export class TMSClient {
   public readonly address: Address;
 
   /**
+   * ShippingFee resource for ad-hoc forwarding-fee estimates
+   */
+  public readonly shippingFee: ShippingFee;
+
+  /**
    * Create a new TMS API client
    *
    * @param config - Client configuration
@@ -174,6 +180,7 @@ export class TMSClient {
     this.wallets = new Wallets(this.http);
     this.quotes = new Quotes(this.http);
     this.address = new Address(this.http);
+    this.shippingFee = new ShippingFee(this.http);
   }
 
   /**

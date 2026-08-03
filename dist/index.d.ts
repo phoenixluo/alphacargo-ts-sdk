@@ -34,12 +34,6 @@ interface Parcel {
     width?: number;
     length?: number;
     height?: number;
-    /**
-     * Number of identical pieces this parcel represents as one lot. Defaults to 1.
-     * Only honored when the waybill is created with `autoSplit: false` — otherwise
-     * each product unit becomes its own package.
-     */
-    piece_count?: number;
     productList: Product[];
     photos?: string[];
 }
@@ -89,14 +83,6 @@ interface CreateWaybillRequest {
     estimatedWeight?: number;
     /** Estimated total volume (m³) for billing when actual values are unavailable (e.g. consolidation) */
     estimatedVolume?: number;
-    /** Total volumetric weight (kg) for the whole waybill. Callers sending a lot of
-     *  N identical pieces should supply the already-multiplied total. */
-    volumetricWeight?: number;
-    /**
-     * When true (default), each product unit in a parcel becomes its own package.
-     * Pass false to persist each parcel as a single package carrying `piece_count`
-     * (a lot of N identical pieces). */
-    autoSplit?: boolean;
 }
 type WaybillOverwriteBehavior = 'overwrite' | 'return_existing' | 'reject' | 'return_if_accepted';
 interface CreateWaybillOptions {
@@ -112,11 +98,6 @@ interface CreateWaybillResponse {
     external_waybill_no: string;
     status: string;
     packages: WaybillPackage[];
-}
-/** Response from POST /waybills/allocate-number. */
-interface AllocateWaybillNumberResponse {
-    /** The reserved number in the org's format, e.g. 'ABC1A748213905'. */
-    number: string;
 }
 interface UpdateWaybillRequest {
     reference_no?: string | null;
@@ -197,7 +178,7 @@ interface WaybillSummary {
     billing_total?: number;
     /** Payment status derived from billings: "paid" when all non-canceled billings are paid, otherwise "unpaid". */
     payment_status?: string;
-    /** True when this waybill is a consolidation parent (has consolidated sub-waybills, i.e. child legs with route_leg_id IS NULL). */
+    /** True when this waybill is a consolidation parent (a master created by waybill consolidation). */
     is_consolidated?: boolean;
 }
 interface WaybillAddress {
@@ -294,28 +275,6 @@ interface AddPackageResponse {
     package_no: string;
     external_package_no: string;
     waybill_id: string;
-}
-/** One resulting package of a split — its own dimensions/weight (piece_count 1). */
-interface SplitPart {
-    outParcelNo?: string;
-    weight: number;
-    length: number;
-    width: number;
-    height: number;
-    notes?: string;
-    photos?: string[];
-}
-interface SplitPackageRequest {
-    /** At least two parts — the real packages the lot is split into. */
-    parts: SplitPart[];
-}
-interface SplitPackageResponse {
-    waybillNo: string;
-    canceledPackageNo: string;
-    packages: {
-        packageNo: string;
-        id: string;
-    }[];
 }
 interface SenderAccountOcrParams {
     /** A photo URL to download and scan. */
@@ -1443,6 +1402,48 @@ interface CreateQuoteResponse {
     /** Price breakdown: the base fare followed by any add-on lines. */
     breakdown: QuoteBreakdownLine[];
 }
+interface ShippingFeeDimensions {
+    length_cm: number;
+    width_cm: number;
+    height_cm: number;
+}
+interface CreateShippingFeeRequest {
+    /** The transport-mode service to price (a shipping-service id). */
+    service_id: string;
+    /** Actual weight in kilograms. */
+    weight_kg: number;
+    /** Optional box dimensions (cm) — used to derive volume and volumetric weight. */
+    dimensions?: ShippingFeeDimensions | null;
+    /** Piece count for per_package rate cards. Defaults to 1 server-side. */
+    package_count?: number;
+    /** Extra service ids to price alongside the primary (e.g. wooden crate). */
+    addon_service_ids?: string[];
+    /** Recipient postal code — resolves the destination service area / route. */
+    destination_postal_code: string;
+    /** ISO country of the destination. Defaults to "TH" server-side. */
+    country?: string;
+    /**
+     * The company's before-consolidation route id (supplied server-side from
+     * credentials, not by the app). Priced as one leg; its terminal end unit is
+     * the start of the after-consolidation delivery route.
+     */
+    before_consolidation_route_id?: string | null;
+}
+interface ShippingFeeBreakdownLine {
+    label: string;
+    amount: number;
+}
+interface ShippingFeeResponse {
+    /** Total estimated fee (primary service + any add-ons), in `currency`. */
+    cost: number;
+    /** ISO 4217 currency of `cost` (defaults to THB). */
+    currency: string;
+    /** Human label for the primary service (the priced rate card's name). */
+    service_name: string;
+    /** The weight the primary card was charged on (max of actual & volumetric). */
+    chargeable_weight: number;
+    breakdown: ShippingFeeBreakdownLine[];
+}
 /**
  * Language for localized API error messages, sent as the `Accept-Language`
  * header. The API supports English, Thai, and Chinese; any other value falls
@@ -1693,25 +1694,6 @@ declare class Waybills {
      */
     create(data: CreateWaybillRequest, options?: CreateWaybillOptions): Promise<CreateWaybillResponse>;
     /**
-     * Reserve the next waybill number in the organization's configured format
-     * WITHOUT creating a waybill. Used to mint a number for a loose, barcode-less
-     * package so a scannable label can be printed before the package is
-     * inbounded; the number later arrives as the package's external reference
-     * (outTradeNo) at inbound.
-     *
-     * Requires the organization to have enabled custom waybill numbering in its
-     * settings — otherwise the call fails with a 409.
-     *
-     * @returns The allocated number, e.g. `{ number: 'ABC1A748213905' }`
-     *
-     * @example
-     * ```typescript
-     * const { number } = await client.waybills.allocateNumber();
-     * console.log(number); // 'ABC1A748213905'
-     * ```
-     */
-    allocateNumber(): Promise<AllocateWaybillNumberResponse>;
-    /**
      * Cancel a waybill
      *
      * @param waybillNo - Waybill number or external waybill number
@@ -1823,27 +1805,6 @@ declare class Waybills {
      * ```
      */
     addPackage(waybillNo: string, data: AddPackageRequest): Promise<AddPackageResponse>;
-    /**
-     * Split one package on a waybill into multiple packages — the misoperation
-     * recovery for a lot (piece_count > 1) that actually holds NON-identical items.
-     * Each part becomes its own package (piece_count 1); the original combined
-     * package is canceled and the waybill totals are recomputed.
-     *
-     * @param waybillNo - Waybill number or external waybill number
-     * @param packageNo - The combined package's number to split
-     * @param data - The parts (at least two) to split into
-     *
-     * @example
-     * ```typescript
-     * await client.waybills.splitPackage('TH24020001', 'TH24020001A1', {
-     *   parts: [
-     *     { weight: 2, length: 10, width: 10, height: 10 },
-     *     { weight: 3, length: 20, width: 15, height: 12 },
-     *   ],
-     * });
-     * ```
-     */
-    splitPackage(waybillNo: string, packageNo: string, data: SplitPackageRequest): Promise<SplitPackageResponse>;
     /**
      * List additional services for a waybill
      *
@@ -3308,6 +3269,38 @@ declare class Address {
 }
 
 /**
+ * ShippingFee resource for ad-hoc forwarding-fee estimates.
+ *
+ * `POST /shipping-fee` resolves the destination route from the recipient postal
+ * code (the same route-resolution waybill billing uses), then prices the
+ * selected service against it with the rate-card engine — read-only, no billing
+ * records are written. Intended for customer-facing shipping calculators.
+ */
+declare class ShippingFee {
+    private readonly http;
+    constructor(http: HttpClient);
+    /**
+     * Estimate the forwarding fee for a parcel to a destination postal code.
+     *
+     * @param data - Service, weight/dimensions, add-ons, and destination postal code.
+     * @returns The priced estimate `{ cost, currency, service_name, chargeable_weight, breakdown }`.
+     *
+     * @example
+     * ```typescript
+     * const quote = await client.shippingFee.calculate({
+     *   service_id: 'svc-uuid',
+     *   weight_kg: 12.5,
+     *   dimensions: { length_cm: 40, width_cm: 30, height_cm: 20 },
+     *   destination_postal_code: '10110',
+     *   country: 'TH',
+     * });
+     * console.log(quote.cost, quote.currency); // 375 THB
+     * ```
+     */
+    calculate(data: CreateShippingFeeRequest): Promise<ShippingFeeResponse>;
+}
+
+/**
  * TMS API Client
  *
  * The main entry point for interacting with the TMS API.
@@ -3400,6 +3393,10 @@ declare class TMSClient {
      */
     readonly address: Address;
     /**
+     * ShippingFee resource for ad-hoc forwarding-fee estimates
+     */
+    readonly shippingFee: ShippingFee;
+    /**
      * Create a new TMS API client
      *
      * @param config - Client configuration
@@ -3440,4 +3437,4 @@ declare class TMSClient {
     withLanguage(language?: TMSLanguage): TMSClient;
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateShippingFeeRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, ShippingFee, type ShippingFeeBreakdownLine, type ShippingFeeDimensions, type ShippingFeeResponse, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };

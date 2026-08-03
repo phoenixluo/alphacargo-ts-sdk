@@ -22,6 +22,7 @@ export {
   Wallets,
   Quotes,
   Address,
+  ShippingFee,
 } from './resources';
 
 // Types
@@ -210,4 +211,10 @@ export type {
   QuoteBreakdownLine,
   CreateQuoteRequest,
   CreateQuoteResponse,
+
+  // Shipping Fee
+  ShippingFeeDimensions,
+  ShippingFeeBreakdownLine,
+  CreateShippingFeeRequest,
+  ShippingFeeResponse,
 } from './types';

@@ -698,19 +698,20 @@ var Waybills = class {
     return this.http.getWithSignature(`/waybills/${encodeURIComponent(waybillNo)}/routes`);
   }
   /**
-   * Extract the 5-letter sender-account code from a package ID photo via Baidu
-   * OCR. Stateless — persists nothing; pass the returned `code` to
-   * `create()` via `sender_account.code` to set the sender account.
+   * OCR a package label photo via Baidu OCR — returns the full recognized text
+   * and the 5-letter sender-account code parsed from it. Stateless — persists
+   * nothing; pass the returned `code` to `create()` via `sender_account.code`
+   * to set the sender account.
    *
    * Requires a Baidu OCR integration configured for the organization. The OCR
    * tier (standard vs high-accuracy) is chosen from the destination `country`.
    *
    * @param params - Image (imageUrl or imageBase64) and optional destination country
-   * @returns The extracted code, confidence and OCR tier used
+   * @returns The recognized text, extracted code, confidence and OCR tier used
    *
    * @example
    * ```typescript
-   * const ocr = await client.waybills.extractSenderAccountCode({
+   * const ocr = await client.waybills.extractPackageLabel({
    *   imageUrl: 'https://cdn/photo.jpg',
    *   country: 'TH',
    * });
@@ -719,7 +720,7 @@ var Waybills = class {
    * }
    * ```
    */
-  async extractSenderAccountCode(params) {
+  async extractPackageLabel(params) {
     return this.http.post(
       "/ocr/sender-account-code",
       params

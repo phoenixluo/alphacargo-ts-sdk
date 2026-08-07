@@ -354,9 +354,9 @@ export interface SplitPackageResponse {
   packages: { packageNo: string; id: string }[];
 }
 
-// --- Sender Account OCR ---
+// --- Package Label OCR ---
 
-export interface SenderAccountOcrParams {
+export interface PackageLabelOcrParams {
   /** A photo URL to download and scan. */
   imageUrl?: string;
   /** Base64-encoded image bytes (no data: prefix) to scan directly. */
@@ -365,8 +365,8 @@ export interface SenderAccountOcrParams {
   country?: string;
 }
 
-export interface SenderAccountOcrResult {
-  /** The 5-letter code read from the photo, or null if none was found. */
+export interface PackageLabelOcrResult {
+  /** The 5-letter sender-account code read from the label, or null if none. */
   code: string | null;
   /** OCR confidence for the matched token (0–1), when available. */
   confidence: number | null;
@@ -376,9 +376,9 @@ export interface SenderAccountOcrResult {
   text: string | null;
 }
 
-export interface SenderAccountOcrResponse {
+export interface PackageLabelOcrResponse {
   success: boolean;
-  data?: SenderAccountOcrResult;
+  data?: PackageLabelOcrResult;
   error?: string;
 }
 

@@ -142,10 +142,10 @@ export type {
   SenderAccountOwnershipRequest,
   SenderAccountOwnershipResponse,
 
-  // Sender Account OCR
-  SenderAccountOcrParams,
-  SenderAccountOcrResult,
-  SenderAccountOcrResponse,
+  // Package Label OCR
+  PackageLabelOcrParams,
+  PackageLabelOcrResult,
+  PackageLabelOcrResponse,
 
   // Billing Profile
   BillingType,

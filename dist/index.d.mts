@@ -71,6 +71,10 @@ interface CreateWaybillRequest {
     remark?: string;
     /** Optional external reference number (e.g., customer PO number) */
     reference_no?: string;
+    /** Free-text product/cargo category (legacy; e.g. "general", "sensitive") */
+    product_category?: string;
+    /** UUID of a managed product category (Settings → Product Categories). Coexists with product_category */
+    product_category_id?: string;
     service_id?: string;
     /** When provided, sender/receiver can be omitted - derived from route's first/last leg units */
     route_id?: string;
@@ -1310,6 +1314,47 @@ interface UpdateOrganizationUnitRequest {
 interface ListOrganizationUnitsParams {
     search?: string;
     type?: OrganizationUnitType;
+    is_active?: boolean;
+    limit?: number;
+    offset?: number;
+}
+interface ProductCategory {
+    id: string;
+    organization_id: string;
+    parent_id: string | null;
+    name: string;
+    description: string | null;
+    is_active: boolean;
+    sort_order: number;
+    metadata: Record<string, unknown> | null;
+    created_at: string;
+    updated_at: string;
+}
+/** A product category with its children resolved (returned when `tree=true`). */
+interface ProductCategoryTreeNode extends ProductCategory {
+    children: ProductCategoryTreeNode[];
+}
+interface CreateProductCategoryRequest {
+    name: string;
+    /** Parent category UUID; omit or null for a root category */
+    parent_id?: string | null;
+    description?: string | null;
+    is_active?: boolean;
+    sort_order?: number;
+}
+interface UpdateProductCategoryRequest {
+    name?: string;
+    /** Set to re-parent; moving a node under itself or a descendant is rejected */
+    parent_id?: string | null;
+    description?: string | null;
+    is_active?: boolean;
+    sort_order?: number;
+}
+interface ListProductCategoriesParams {
+    /** When true, returns the nested tree via {@link ProductCategoriesTreeResponse} instead of a flat list */
+    tree?: boolean;
+    search?: string;
+    parent_id?: string;
     is_active?: boolean;
     limit?: number;
     offset?: number;
@@ -3143,6 +3188,91 @@ declare class OrganizationUnits {
     delete(id: string): Promise<void>;
 }
 
+interface ListProductCategoriesResponse {
+    data: ProductCategory[];
+    pagination: {
+        total: number;
+        limit: number;
+        offset: number;
+        page: number;
+        pageSize: number;
+        totalPages: number;
+    };
+}
+interface ProductCategoriesTreeResponse {
+    data: ProductCategoryTreeNode[];
+}
+/**
+ * ProductCategories resource for managing the org-scoped product category tree.
+ *
+ * Category IDs returned here can be passed as `product_category_id` when creating
+ * a waybill.
+ */
+declare class ProductCategories {
+    private readonly http;
+    constructor(http: HttpClient);
+    /**
+     * List product categories as a flat, paginated list.
+     *
+     * @param params - Query parameters for filtering
+     * @returns Paginated list of product categories
+     *
+     * @example
+     * ```typescript
+     * const categories = await client.productCategories.list({ is_active: true });
+     * console.log(categories.data); // Array of product categories
+     * ```
+     */
+    list(params?: ListProductCategoriesParams): Promise<ListProductCategoriesResponse>;
+    /**
+     * Fetch the full category hierarchy as a nested tree.
+     *
+     * @returns The category tree (roots with nested `children`)
+     *
+     * @example
+     * ```typescript
+     * const { data } = await client.productCategories.tree();
+     * data.forEach(root => console.log(root.name, root.children.length));
+     * ```
+     */
+    tree(): Promise<ProductCategoriesTreeResponse>;
+    /**
+     * Create a new product category.
+     *
+     * @param data - Category creation data (omit `parent_id` for a root category)
+     * @returns The created product category
+     *
+     * @example
+     * ```typescript
+     * const root = await client.productCategories.create({ name: 'Electronics' });
+     * const child = await client.productCategories.create({
+     *   name: 'Batteries',
+     *   parent_id: root.id,
+     * });
+     * ```
+     */
+    create(data: CreateProductCategoryRequest): Promise<ProductCategory>;
+    /**
+     * Update a product category. Setting `parent_id` re-parents the node.
+     *
+     * @param id - Product category ID
+     * @param data - Fields to update
+     * @returns The updated product category
+     *
+     * @example
+     * ```typescript
+     * await client.productCategories.update('category-uuid', { is_active: false });
+     * ```
+     */
+    update(id: string, data: UpdateProductCategoryRequest): Promise<ProductCategory>;
+    /**
+     * Delete a product category and its subtree.
+     *
+     * @param id - Product category ID
+     */
+    delete(id: string): Promise<void>;
+}
+
 /**
  * Wallets resource — prepaid deposit balances.
  *
@@ -3405,6 +3535,10 @@ declare class TMSClient {
      */
     readonly organizationUnits: OrganizationUnits;
     /**
+     * ProductCategories resource for managing the org-scoped product category tree
+     */
+    readonly productCategories: ProductCategories;
+    /**
      * Wallets resource for prepaid deposit balances (top-up, pay, transactions)
      */
     readonly wallets: Wallets;
@@ -3461,4 +3595,4 @@ declare class TMSClient {
     withLanguage(language?: TMSLanguage): TMSClient;
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateShippingFeeRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, ShippingFee, type ShippingFeeBreakdownLine, type ShippingFeeDimensions, type ShippingFeeResponse, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateProductCategoryRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateShippingFeeRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListProductCategoriesParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, ProductCategories, type ProductCategory, type ProductCategoryTreeNode, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, ShippingFee, type ShippingFeeBreakdownLine, type ShippingFeeDimensions, type ShippingFeeResponse, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateProductCategoryRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };

@@ -13,6 +13,7 @@ import {
   WaybillRoutes,
   Organizations,
   OrganizationUnits,
+  ProductCategories,
   Wallets,
   Quotes,
   Address,
@@ -115,6 +116,11 @@ export class TMSClient {
   public readonly organizationUnits: OrganizationUnits;
 
   /**
+   * ProductCategories resource for managing the org-scoped product category tree
+   */
+  public readonly productCategories: ProductCategories;
+
+  /**
    * Wallets resource for prepaid deposit balances (top-up, pay, transactions)
    */
   public readonly wallets: Wallets;
@@ -177,6 +183,7 @@ export class TMSClient {
     this.waybillRoutes = new WaybillRoutes(this.http);
     this.organizations = new Organizations(this.http);
     this.organizationUnits = new OrganizationUnits(this.http);
+    this.productCategories = new ProductCategories(this.http);
     this.wallets = new Wallets(this.http);
     this.quotes = new Quotes(this.http);
     this.address = new Address(this.http);

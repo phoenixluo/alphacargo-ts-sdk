@@ -85,6 +85,10 @@ export interface CreateWaybillRequest {
   remark?: string;
   /** Optional external reference number (e.g., customer PO number) */
   reference_no?: string;
+  /** Free-text product/cargo category (legacy; e.g. "general", "sensitive") */
+  product_category?: string;
+  /** UUID of a managed product category (Settings → Product Categories). Coexists with product_category */
+  product_category_id?: string;
   service_id?: string;
   /** When provided, sender/receiver can be omitted - derived from route's first/last leg units */
   route_id?: string;
@@ -1534,6 +1538,56 @@ export interface UpdateOrganizationUnitRequest {
 export interface ListOrganizationUnitsParams {
   search?: string;
   type?: OrganizationUnitType;
+  is_active?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+// ============================================================================
+// Product Category Types
+// ============================================================================
+
+export interface ProductCategory {
+  id: string;
+  organization_id: string;
+  parent_id: string | null;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  sort_order: number;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A product category with its children resolved (returned when `tree=true`). */
+export interface ProductCategoryTreeNode extends ProductCategory {
+  children: ProductCategoryTreeNode[];
+}
+
+export interface CreateProductCategoryRequest {
+  name: string;
+  /** Parent category UUID; omit or null for a root category */
+  parent_id?: string | null;
+  description?: string | null;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export interface UpdateProductCategoryRequest {
+  name?: string;
+  /** Set to re-parent; moving a node under itself or a descendant is rejected */
+  parent_id?: string | null;
+  description?: string | null;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export interface ListProductCategoriesParams {
+  /** When true, returns the nested tree via {@link ProductCategoriesTreeResponse} instead of a flat list */
+  tree?: boolean;
+  search?: string;
+  parent_id?: string;
   is_active?: boolean;
   limit?: number;
   offset?: number;

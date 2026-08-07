@@ -19,6 +19,7 @@ export {
   WaybillRoutes,
   Organizations,
   OrganizationUnits,
+  ProductCategories,
   Wallets,
   Quotes,
   Address,
@@ -185,6 +186,13 @@ export type {
   CreateOrganizationUnitRequest,
   UpdateOrganizationUnitRequest,
   ListOrganizationUnitsParams,
+
+  // Product Category
+  ProductCategory,
+  ProductCategoryTreeNode,
+  CreateProductCategoryRequest,
+  UpdateProductCategoryRequest,
+  ListProductCategoriesParams,
 
   // Delivery Events
   DeliveryEventType,

@@ -8,6 +8,9 @@ import type {
   GetLabelParams,
   AddPackageRequest,
   AddPackageResponse,
+  SplitPackageRequest,
+  SplitPackageResponse,
+  AllocateWaybillNumberResponse,
   AdditionalService,
   CreateAdditionalServicesRequest,
   UpdateAdditionalServiceRequest,
@@ -292,6 +295,59 @@ export class Waybills {
   async addPackage(waybillNo: string, data: AddPackageRequest): Promise<AddPackageResponse> {
     return this.http.post<AddPackageResponse>(
       `/waybills/${encodeURIComponent(waybillNo)}/packages`,
+      data as unknown as Record<string, unknown>
+    );
+  }
+
+  /**
+   * Reserve the next waybill number in the organization's configured format
+   * WITHOUT creating a waybill. Used to mint a number for a loose, barcode-less
+   * package so a scannable label can be printed before the package is
+   * inbounded; the number later arrives as the package's external reference
+   * (outTradeNo) at inbound.
+   *
+   * Requires the organization to have enabled custom waybill numbering in its
+   * settings — otherwise the call fails with a 409.
+   *
+   * @returns The allocated number, e.g. `{ number: 'ABC1A748213905' }`
+   *
+   * @example
+   * ```typescript
+   * const { number } = await client.waybills.allocateNumber();
+   * console.log(number); // 'ABC1A748213905'
+   * ```
+   */
+  async allocateNumber(): Promise<AllocateWaybillNumberResponse> {
+    return this.http.post<AllocateWaybillNumberResponse>('/waybills/allocate-number', {});
+  }
+
+  /**
+   * Split one package on a waybill into multiple packages — the misoperation
+   * recovery for a lot (piece_count > 1) that actually holds NON-identical items.
+   * Each part becomes its own package (piece_count 1); the original combined
+   * package is canceled and the waybill totals are recomputed.
+   *
+   * @param waybillNo - Waybill number or external waybill number
+   * @param packageNo - The combined package's number to split
+   * @param data - The parts (at least two) to split into
+   *
+   * @example
+   * ```typescript
+   * await client.waybills.splitPackage('TH24020001', 'TH24020001A1', {
+   *   parts: [
+   *     { weight: 2, length: 10, width: 10, height: 10 },
+   *     { weight: 3, length: 20, width: 15, height: 12 },
+   *   ],
+   * });
+   * ```
+   */
+  async splitPackage(
+    waybillNo: string,
+    packageNo: string,
+    data: SplitPackageRequest,
+  ): Promise<SplitPackageResponse> {
+    return this.http.post<SplitPackageResponse>(
+      `/waybills/${encodeURIComponent(waybillNo)}/packages/${encodeURIComponent(packageNo)}/split`,
       data as unknown as Record<string, unknown>
     );
   }

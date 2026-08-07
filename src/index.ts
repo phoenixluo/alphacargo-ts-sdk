@@ -51,6 +51,10 @@ export type {
   GetLabelParams,
   AddPackageRequest,
   AddPackageResponse,
+  AllocateWaybillNumberResponse,
+  SplitPart,
+  SplitPackageRequest,
+  SplitPackageResponse,
   AdditionalService,
   CreateAdditionalServicesRequest,
   UpdateAdditionalServiceRequest,
@@ -137,6 +141,11 @@ export type {
   AddressType,
   SenderAccountOwnershipRequest,
   SenderAccountOwnershipResponse,
+
+  // Sender Account OCR
+  SenderAccountOcrParams,
+  SenderAccountOcrResult,
+  SenderAccountOcrResponse,
 
   // Billing Profile
   BillingType,

@@ -34,6 +34,12 @@ interface Parcel {
     width?: number;
     length?: number;
     height?: number;
+    /**
+     * Number of identical pieces this parcel represents as one lot. Defaults to 1.
+     * Only honored when the waybill is created with `autoSplit: false` — otherwise
+     * each product unit becomes its own package.
+     */
+    piece_count?: number;
     productList: Product[];
     photos?: string[];
 }
@@ -87,6 +93,14 @@ interface CreateWaybillRequest {
     estimatedWeight?: number;
     /** Estimated total volume (m³) for billing when actual values are unavailable (e.g. consolidation) */
     estimatedVolume?: number;
+    /** Total volumetric weight (kg) for the whole waybill. Callers sending a lot of
+     *  N identical pieces should supply the already-multiplied total. */
+    volumetricWeight?: number;
+    /**
+     * When true (default), each product unit in a parcel becomes its own package.
+     * Pass false to persist each parcel as a single package carrying `piece_count`
+     * (a lot of N identical pieces). */
+    autoSplit?: boolean;
 }
 type WaybillOverwriteBehavior = 'overwrite' | 'return_existing' | 'reject' | 'return_if_accepted';
 interface CreateWaybillOptions {
@@ -102,6 +116,11 @@ interface CreateWaybillResponse {
     external_waybill_no: string;
     status: string;
     packages: WaybillPackage[];
+}
+/** Response from POST /waybills/allocate-number. */
+interface AllocateWaybillNumberResponse {
+    /** The reserved number in the org's format, e.g. 'ABC1A748213905'. */
+    number: string;
 }
 interface UpdateWaybillRequest {
     reference_no?: string | null;
@@ -280,6 +299,28 @@ interface AddPackageResponse {
     external_package_no: string;
     waybill_id: string;
 }
+/** One resulting package of a split — its own dimensions/weight (piece_count 1). */
+interface SplitPart {
+    outParcelNo?: string;
+    weight: number;
+    length: number;
+    width: number;
+    height: number;
+    notes?: string;
+    photos?: string[];
+}
+interface SplitPackageRequest {
+    /** At least two parts — the real packages the lot is split into. */
+    parts: SplitPart[];
+}
+interface SplitPackageResponse {
+    waybillNo: string;
+    canceledPackageNo: string;
+    packages: {
+        packageNo: string;
+        id: string;
+    }[];
+}
 interface SenderAccountOcrParams {
     /** A photo URL to download and scan. */
     imageUrl?: string;
@@ -295,6 +336,8 @@ interface SenderAccountOcrResult {
     confidence: number | null;
     /** Which Baidu OCR tier ran. */
     version: 'standard' | 'high_accuracy';
+    /** Full recognized text (all lines joined by newline); null when none found. */
+    text: string | null;
 }
 interface SenderAccountOcrResponse {
     success: boolean;
@@ -1874,6 +1917,46 @@ declare class Waybills {
      * ```
      */
     addPackage(waybillNo: string, data: AddPackageRequest): Promise<AddPackageResponse>;
+    /**
+     * Reserve the next waybill number in the organization's configured format
+     * WITHOUT creating a waybill. Used to mint a number for a loose, barcode-less
+     * package so a scannable label can be printed before the package is
+     * inbounded; the number later arrives as the package's external reference
+     * (outTradeNo) at inbound.
+     *
+     * Requires the organization to have enabled custom waybill numbering in its
+     * settings — otherwise the call fails with a 409.
+     *
+     * @returns The allocated number, e.g. `{ number: 'ABC1A748213905' }`
+     *
+     * @example
+     * ```typescript
+     * const { number } = await client.waybills.allocateNumber();
+     * console.log(number); // 'ABC1A748213905'
+     * ```
+     */
+    allocateNumber(): Promise<AllocateWaybillNumberResponse>;
+    /**
+     * Split one package on a waybill into multiple packages — the misoperation
+     * recovery for a lot (piece_count > 1) that actually holds NON-identical items.
+     * Each part becomes its own package (piece_count 1); the original combined
+     * package is canceled and the waybill totals are recomputed.
+     *
+     * @param waybillNo - Waybill number or external waybill number
+     * @param packageNo - The combined package's number to split
+     * @param data - The parts (at least two) to split into
+     *
+     * @example
+     * ```typescript
+     * await client.waybills.splitPackage('TH24020001', 'TH24020001A1', {
+     *   parts: [
+     *     { weight: 2, length: 10, width: 10, height: 10 },
+     *     { weight: 3, length: 20, width: 15, height: 12 },
+     *   ],
+     * });
+     * ```
+     */
+    splitPackage(waybillNo: string, packageNo: string, data: SplitPackageRequest): Promise<SplitPackageResponse>;
     /**
      * List additional services for a waybill
      *
@@ -3595,4 +3678,4 @@ declare class TMSClient {
     withLanguage(language?: TMSLanguage): TMSClient;
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateProductCategoryRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateShippingFeeRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListProductCategoriesParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, ProductCategories, type ProductCategory, type ProductCategoryTreeNode, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, ShippingFee, type ShippingFeeBreakdownLine, type ShippingFeeDimensions, type ShippingFeeResponse, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateProductCategoryRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type AllocateWaybillNumberResponse, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateProductCategoryRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateShippingFeeRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListProductCategoriesParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, ProductCategories, type ProductCategory, type ProductCategoryTreeNode, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOcrParams, type SenderAccountOcrResponse, type SenderAccountOcrResult, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, ShippingFee, type ShippingFeeBreakdownLine, type ShippingFeeDimensions, type ShippingFeeResponse, type SplitPackageRequest, type SplitPackageResponse, type SplitPart, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateProductCategoryRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };

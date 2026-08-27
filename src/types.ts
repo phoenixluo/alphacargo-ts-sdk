@@ -108,9 +108,11 @@ export interface CreateWaybillRequest {
    *  N identical pieces should supply the already-multiplied total. */
   volumetricWeight?: number;
   /**
-   * When true (default), each product unit in a parcel becomes its own package.
-   * Pass false to persist each parcel as a single package carrying `piece_count`
-   * (a lot of N identical pieces). */
+   * When true, each product unit in a parcel becomes its own package (with a
+   * `-N` suffix on `outParcelNo`). When false, each parcel is persisted as a
+   * single package carrying `piece_count` (a lot of N identical pieces). If
+   * omitted, falls back to the organization's "Automatically split parcels"
+   * preference (default false). */
   autoSplit?: boolean;
 }
 
@@ -228,6 +230,24 @@ export interface WaybillSummary {
   payment_status?: string;
   /** True when this waybill is a consolidation parent (a master created by waybill consolidation). */
   is_consolidated?: boolean;
+}
+
+/**
+ * Filters for counting waybills grouped by service. Same filter surface as
+ * WaybillListParams but without pagination — the count endpoint aggregates the
+ * whole matching set.
+ */
+export type WaybillServiceCountParams = Omit<WaybillListParams, keyof PaginationParams>;
+
+/**
+ * One row of the service-count aggregation: how many waybills resolve to a given
+ * service (from the requesting org's delegation). service_id/service_name are null
+ * for waybills with no delegation for the org.
+ */
+export interface WaybillServiceCount {
+  service_id: string | null;
+  service_name: string | null;
+  count: number;
 }
 
 export interface WaybillAddress {

@@ -313,6 +313,29 @@ var Waybills = class {
     return this.http.getWithSignature("/waybills", query);
   }
   /**
+   * Count waybills grouped by the service resolved from the requesting org's
+   * delegation. Aggregated server-side, so a caller can learn how many distinct
+   * services a filtered set of waybills spans (and the per-service count) without
+   * paging every row.
+   *
+   * @param params - Same filters as {@link list}, minus pagination
+   * @returns One row per service: `{ service_id, service_name, count }`
+   *          (service_id/service_name null for waybills with no delegation)
+   *
+   * @example
+   * ```typescript
+   * const counts = await client.waybills.countByService({
+   *   route_id: 'route-uuid',
+   *   statuses: 'delivered',
+   *   sender_account_code: 'SND-001',
+   * });
+   * // [{ service_id: '…', service_name: '陆运', count: 3 }, …]
+   * ```
+   */
+  async countByService(params) {
+    return this.http.getWithSignature("/waybills/service-counts", { ...params });
+  }
+  /**
    * Get waybill details by waybill number
    *
    * @param waybillNo - Waybill number or external waybill number

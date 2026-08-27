@@ -19,6 +19,8 @@ import type {
   ConsolidateWaybillsResponse,
   WaybillListParams,
   WaybillSummary,
+  WaybillServiceCountParams,
+  WaybillServiceCount,
   WaybillDetails,
   PaginatedResponse,
   PackageLabelOcrParams,
@@ -63,6 +65,30 @@ export class Waybills {
       query.reference_no = '';
     }
     return this.http.getWithSignature<PaginatedResponse<WaybillSummary>>('/waybills', query);
+  }
+
+  /**
+   * Count waybills grouped by the service resolved from the requesting org's
+   * delegation. Aggregated server-side, so a caller can learn how many distinct
+   * services a filtered set of waybills spans (and the per-service count) without
+   * paging every row.
+   *
+   * @param params - Same filters as {@link list}, minus pagination
+   * @returns One row per service: `{ service_id, service_name, count }`
+   *          (service_id/service_name null for waybills with no delegation)
+   *
+   * @example
+   * ```typescript
+   * const counts = await client.waybills.countByService({
+   *   route_id: 'route-uuid',
+   *   statuses: 'delivered',
+   *   sender_account_code: 'SND-001',
+   * });
+   * // [{ service_id: '…', service_name: '陆运', count: 3 }, …]
+   * ```
+   */
+  async countByService(params?: WaybillServiceCountParams): Promise<WaybillServiceCount[]> {
+    return this.http.getWithSignature<WaybillServiceCount[]>('/waybills/service-counts', { ...params });
   }
 
   /**

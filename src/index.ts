@@ -65,6 +65,8 @@ export type {
   ConsolidateWaybillsResponse,
   WaybillListParams,
   WaybillSummary,
+  WaybillServiceCountParams,
+  WaybillServiceCount,
   WaybillDetails,
   WaybillAddress,
   WaybillRecipient,

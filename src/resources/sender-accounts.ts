@@ -10,6 +10,8 @@ import type {
   ListSenderAccountRecipientsParams,
   SenderAccountOwnershipRequest,
   SenderAccountOwnershipResponse,
+  ImportSenderAccountsRequest,
+  ImportSenderAccountsResponse,
 } from '../types';
 
 interface ListSenderAccountsResponse {
@@ -51,19 +53,49 @@ export class SenderAccounts {
   }
 
   /**
-   * Get a single sender account by ID or sender_code
+   * Get a single sender account by ID, sender_code, or slug
    *
-   * @param id - Sender account ID or sender_code
+   * @param id - Sender account ID, sender_code, or slug (the tenant's own
+   *   alternate/legacy account code)
    * @returns Sender account details
    *
    * @example
    * ```typescript
    * const account = await client.senderAccounts.get('account-uuid');
-   * console.log(account.sender_code); // 'ACME001'
+   * console.log(account.sender_code); // 'ACMEE'
+   * // Also resolves by the tenant's migrated code:
+   * const bySlug = await client.senderAccounts.get('EK-XXMF-BBFLC');
    * ```
    */
   async get(id: string): Promise<SenderAccount> {
     return this.http.get<SenderAccount>(`/sender-accounts/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * Bulk-import sender accounts migrated from another TMS system.
+   *
+   * Idempotent per-row on `slug` (the tenant's legacy code): a row whose slug
+   * already exists in the org updates that account; otherwise a new account is
+   * created with a freshly-generated internal `sender_code`. Safe to re-run.
+   *
+   * @param data - The rows to import
+   * @returns Summary of created / updated / failed rows
+   *
+   * @example
+   * ```typescript
+   * const summary = await client.senderAccounts.import({
+   *   rows: [
+   *     { name: 'Acme Corp', slug: 'EK-XXMF-BBFLC', phone: '0812345678' },
+   *   ],
+   * });
+   * console.log(summary.created, summary.updated, summary.failed);
+   * ```
+   */
+  async import(data: ImportSenderAccountsRequest): Promise<ImportSenderAccountsResponse> {
+    return this.http.post<ImportSenderAccountsResponse>(
+      '/sender-accounts/import',
+      data as unknown as Record<string, unknown>
+    );
   }
 
   /**

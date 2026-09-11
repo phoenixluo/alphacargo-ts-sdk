@@ -76,7 +76,18 @@ export class Invoices {
    *   billing_ids: ['billing-1', 'billing-2'],
    *   status: 'issued',
    * });
+   *
+   * // Idempotent: hand back the invoice these lines are already on
+   * const invoice = await client.invoices.create({ ..., reuse_existing: true });
+   * if (invoice.reused) console.log('already invoiced as', invoice.invoice_no);
    * ```
+   *
+   * @throws TMSApiError with `statusCode` 409 when the lines already belong to
+   * an invoice and neither `reuse_existing` nor `supersede_existing` applies.
+   * `details.code` is a stable slug (`billings_already_invoiced`,
+   * `billings_span_multiple_invoices`, `invoice_not_supersedable`,
+   * `billings_already_settled`) and `details.invoices` lists the invoices
+   * involved with their id, number and status — no message parsing needed.
    */
   async create(data: CreateInvoiceRequest): Promise<Invoice> {
     return this.http.post<Invoice>('/invoices', data as unknown as Record<string, unknown>);

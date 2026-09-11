@@ -602,6 +602,11 @@ export interface Invoice {
   payment_terms?: string;
   created_at: string;
   line_items?: InvoiceLineItem[];
+  /**
+   * Only on a create response: this invoice already existed and was returned
+   * untouched (`reuse_existing`), rather than being created by that call.
+   */
+  reused?: boolean;
 }
 
 export interface CreateInvoiceRequest {
@@ -610,7 +615,11 @@ export interface CreateInvoiceRequest {
   /**
    * Billings to invoice. They must all share one currency, which becomes the
    * invoice's currency — a mismatch is rejected with HTTP 400. Omit to create an
-   * empty invoice that defaults to the billing profile's currency.
+   * empty draft that defaults to the billing profile's currency.
+   *
+   * A billing already attached to an invoice is rejected with HTTP 400 naming
+   * that invoice; billings are never moved between invoices. Reuse the named
+   * invoice, or cancel it (which releases its billings) before re-billing.
    */
   billing_ids?: string[];
   period_start: string;
@@ -624,8 +633,30 @@ export interface CreateInvoiceRequest {
    * the invoice total at creation time.
    */
   discount_amount?: number;
-  /** Initial status — 'draft' (default) or 'issued' to create and issue in one step */
+  /**
+   * Initial status — 'draft' (default) or 'issued' to create and issue in one
+   * step. Issuing requires at least one line item.
+   */
   status?: 'draft' | 'issued';
+  /**
+   * Cancel whatever invoice currently holds any of `billing_ids` and bill those
+   * lines here instead — for a customer who abandoned payment and came back
+   * with an overlapping selection. Cancelling releases the superseded invoice's
+   * lines, including any not selected this time, and cancels any payment still
+   * pending against it. Rejected with HTTP 400 when a superseded invoice has a
+   * completed payment.
+   */
+  supersede_existing?: boolean;
+  /**
+   * Return the invoice these lines are already on instead of failing, when every
+   * id in `billing_ids` sits on one live invoice — making the create idempotent
+   * for a caller whose first step of paying is creating the invoice. The
+   * returned invoice carries `reused: true`.
+   *
+   * Evaluated before `supersede_existing`, so passing both means "give me the
+   * existing invoice if it covers exactly this set, otherwise replace it".
+   */
+  reuse_existing?: boolean;
   /** Issue date (YYYY-MM-DD). Defaults to today when status='issued'. */
   issue_date?: string;
   /** Due date (YYYY-MM-DD). Defaults to issue_date + billing profile payment terms when status='issued'. */
@@ -746,11 +777,16 @@ export interface ReplaceAllocationsRequest {
 export interface BankSlip {
   id: string;
   payment_id: string;
-  slip_url: string;
-  bank_name: string;
+  /** The stored slip image. */
+  file_url: string;
+  /** Clearing code of the PAYER's bank, e.g. "014" for SCB. */
+  bank_code: string | null;
+  /** The PAYER's account number, when they supply it. */
+  bank_account_no?: string | null;
+  /** Reference the payer quoted for the transfer. */
+  transfer_reference?: string | null;
   transfer_date: string;
   transfer_amount: number;
-  transfer_reference?: string;
   verified?: boolean;
   verification_notes?: string;
   created_at: string;
@@ -758,7 +794,11 @@ export interface BankSlip {
 
 export interface CreateBankSlipRequest {
   slip_url: string;
-  bank_name: string;
+  /**
+   * The PAYER's bank as a clearing code, not a display name. This was
+   * `bank_name` and carried the full name, which the column rejected outright.
+   */
+  bank_code: string;
   transfer_date: string;
   transfer_amount: number;
   transfer_reference?: string;
@@ -769,9 +809,93 @@ export interface VerifyBankSlipRequest {
   verification_notes?: string;
 }
 
+// --- Receiving Bank Accounts ---
+
+/**
+ * An organization's receiving account, as a PAYER may see it.
+ *
+ * Only the fields needed to actually make a transfer. The operator's label, the
+ * account's monthly cap, its notes and its statement mapping are internal and
+ * never cross this boundary.
+ */
+export interface PublicBankAccount {
+  bank_name: string;
+  bank_code: string | null;
+  account_number: string;
+  account_name: string;
+  branch: string | null;
+  currency: string;
+  qr_image_url: string | null;
+  instructions: string | null;
+}
+
+/** Where to send a bank transfer, and the reference that identifies it. */
+export interface BankTransferInstructions {
+  reference_code: string;
+  account: PublicBankAccount;
+  amount: number;
+  currency: string;
+  expires_at: string | null;
+}
+
+export interface BankAccountAvailability {
+  available: boolean;
+  currency: string;
+  /** `no_bank_account_available` when unavailable, else null. */
+  reason: string | null;
+}
+
 // --- FlashPay ---
 
 export type FlashPayType = 'qr' | 'app';
+
+/** How a payer completes a method — the branch a client renders. */
+export type PaymentMode =
+  | 'qr'
+  | 'deeplink'
+  | 'wechat_applet'
+  | 'manual_transfer'
+  | 'settled';
+
+/** Why an offered method cannot be used right now. */
+export type PaymentMethodUnavailableReason =
+  | 'not_configured'
+  | 'no_bank_account_available'
+  | 'insufficient_balance'
+  | 'currency_unsupported'
+  | 'no_sender_account'
+  | 'unavailable';
+
+export interface AvailablePaymentMethod {
+  name: PaymentMethod;
+  /** Presentation shapes this method supports. */
+  modes: PaymentMode[];
+  available: boolean;
+  /** Present only when `available` is false. */
+  unavailable_reason?: PaymentMethodUnavailableReason;
+}
+
+export interface PaymentMethodsResponse {
+  /** Allowed methods, in the order they should be shown. */
+  methods: AvailablePaymentMethod[];
+  /** The method to preselect, or null when nothing is enabled. */
+  default: PaymentMethod | null;
+}
+
+/**
+ * Query for the methods that may pay for something.
+ *
+ * Give `invoice_id` OR `service_id`, not both. With neither, only the
+ * organization's own enabled list applies. `amount` and `currency` matter
+ * because availability depends on the charge.
+ */
+export interface PaymentMethodsParams {
+  invoice_id?: string;
+  service_id?: string;
+  sender_account_id?: string;
+  amount?: number;
+  currency?: string;
+}
 
 export interface FlashPayRequest {
   amount: number;
@@ -980,6 +1104,11 @@ export interface SenderAccount {
   name: string;
   company_name?: string;
   sender_code: string;
+  /**
+   * Tenant's own alternate account code (per-org unique, free-form). Preserves a
+   * code from a migrated external TMS; usable as a lookup key in `get()`.
+   */
+  slug?: string | null;
   email?: string;
   phone?: string;
   type: string;
@@ -996,6 +1125,8 @@ export interface CreateSenderAccountRequest {
   type?: string;
   is_active?: boolean;
   sender_code?: string;
+  /** Tenant's own alternate account code (per-org unique, free-form). */
+  slug?: string | null;
   address_id?: string;
   metadata?: Record<string, unknown>;
 }
@@ -1007,6 +1138,8 @@ export interface UpdateSenderAccountRequest {
   phone?: string;
   address_id?: string;
   is_active?: boolean;
+  /** Tenant's own alternate account code (per-org unique, free-form). */
+  slug?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -1015,6 +1148,28 @@ export interface ListSenderAccountsParams {
   is_active?: boolean;
   limit?: number;
   offset?: number;
+}
+
+/** One row of a sender-account bulk import. */
+export interface ImportSenderAccountRow {
+  name: string;
+  company_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  type?: string | null;
+  /** The tenant's legacy code — the idempotency key for re-runnable imports. */
+  slug?: string | null;
+}
+
+export interface ImportSenderAccountsRequest {
+  rows: ImportSenderAccountRow[];
+}
+
+export interface ImportSenderAccountsResponse {
+  created: number;
+  updated: number;
+  failed: number;
+  errors: Array<{ row: number; slug?: string | null; message: string }>;
 }
 
 // --- Sender Account Ownership (partner credential) ---

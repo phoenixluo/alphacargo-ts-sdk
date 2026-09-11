@@ -12,6 +12,7 @@ export { WaybillRoutes } from './waybill-routes';
 export { Organizations } from './organizations';
 export { OrganizationUnits } from './organization-units';
 export { ProductCategories } from './product-categories';
+export { BankAccounts } from './bank-accounts';
 export { Wallets } from './wallets';
 export { Quotes } from './quotes';
 export { Address } from './address';

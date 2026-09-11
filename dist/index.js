@@ -21,6 +21,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   Address: () => Address,
+  BankAccounts: () => BankAccounts,
   BillingProfiles: () => BillingProfiles,
   Billings: () => Billings,
   DeliveryEvents: () => DeliveryEvents,
@@ -925,7 +926,18 @@ var Invoices = class {
    *   billing_ids: ['billing-1', 'billing-2'],
    *   status: 'issued',
    * });
+   *
+   * // Idempotent: hand back the invoice these lines are already on
+   * const invoice = await client.invoices.create({ ..., reuse_existing: true });
+   * if (invoice.reused) console.log('already invoiced as', invoice.invoice_no);
    * ```
+   *
+   * @throws TMSApiError with `statusCode` 409 when the lines already belong to
+   * an invoice and neither `reuse_existing` nor `supersede_existing` applies.
+   * `details.code` is a stable slug (`billings_already_invoiced`,
+   * `billings_span_multiple_invoices`, `invoice_not_supersedable`,
+   * `billings_already_settled`) and `details.invoices` lists the invoices
+   * involved with their id, number and status — no message parsing needed.
    */
   async create(data) {
     return this.http.post("/invoices", data);
@@ -1258,6 +1270,32 @@ var Payments = class {
   async generateFlashPayQR(data) {
     return this.initiateFlashPay(data);
   }
+  /**
+   * Which payment methods may be used for a payment, and which of them will
+   * actually work right now.
+   *
+   * Render your payment picker from this rather than a hardcoded list: the
+   * organization decides which methods it accepts, and a service can narrow
+   * that further. Methods that cannot be used come back `available: false` with
+   * a reason, so show them greyed out rather than hiding them.
+   *
+   * Availability is advisory — it can change between this call and the payment.
+   *
+   * @example
+   * ```typescript
+   * const { methods, default: preselect } = await client.payments.methods({
+   *   invoice_id: 'invoice-uuid',
+   *   amount: 1500,
+   *   currency: 'THB',
+   * });
+   * ```
+   */
+  async methods(params) {
+    return this.http.get(
+      "/payment-methods",
+      params
+    );
+  }
 };
 
 // src/resources/rate-cards.ts
@@ -1368,19 +1406,48 @@ var SenderAccounts = class {
     return this.http.get("/sender-accounts", params);
   }
   /**
-   * Get a single sender account by ID or sender_code
+   * Get a single sender account by ID, sender_code, or slug
    *
-   * @param id - Sender account ID or sender_code
+   * @param id - Sender account ID, sender_code, or slug (the tenant's own
+   *   alternate/legacy account code)
    * @returns Sender account details
    *
    * @example
    * ```typescript
    * const account = await client.senderAccounts.get('account-uuid');
-   * console.log(account.sender_code); // 'ACME001'
+   * console.log(account.sender_code); // 'ACMEE'
+   * // Also resolves by the tenant's migrated code:
+   * const bySlug = await client.senderAccounts.get('EK-XXMF-BBFLC');
    * ```
    */
   async get(id) {
     return this.http.get(`/sender-accounts/${encodeURIComponent(id)}`);
+  }
+  /**
+   * Bulk-import sender accounts migrated from another TMS system.
+   *
+   * Idempotent per-row on `slug` (the tenant's legacy code): a row whose slug
+   * already exists in the org updates that account; otherwise a new account is
+   * created with a freshly-generated internal `sender_code`. Safe to re-run.
+   *
+   * @param data - The rows to import
+   * @returns Summary of created / updated / failed rows
+   *
+   * @example
+   * ```typescript
+   * const summary = await client.senderAccounts.import({
+   *   rows: [
+   *     { name: 'Acme Corp', slug: 'EK-XXMF-BBFLC', phone: '0812345678' },
+   *   ],
+   * });
+   * console.log(summary.created, summary.updated, summary.failed);
+   * ```
+   */
+  async import(data) {
+    return this.http.post(
+      "/sender-accounts/import",
+      data
+    );
   }
   /**
    * Create a new sender account
@@ -2193,6 +2260,58 @@ var ProductCategories = class {
   }
 };
 
+// src/resources/bank-accounts.ts
+var BankAccounts = class {
+  constructor(http) {
+    this.http = http;
+  }
+  /**
+   * List the active receiving accounts, as a payer may see them.
+   *
+   * @param params.currency - Only accounts denominated in this currency. Worth
+   * passing: money can only be received into an account in its own currency, so
+   * an account in the wrong one is never a valid answer.
+   *
+   * @example
+   * ```typescript
+   * const accounts = await client.bankAccounts.list({ currency: 'THB' });
+   * ```
+   */
+  async list(params) {
+    const query = new URLSearchParams({ view: "public" });
+    if (params?.currency) query.set("currency", params.currency);
+    return this.http.get(`/bank-accounts?${query.toString()}`);
+  }
+  /**
+   * Whether a bank transfer can be offered for this amount and currency.
+   *
+   * Call it before showing the option, so a customer is never handed a payment
+   * method that immediately dead-ends. It comes back false when the organization
+   * holds no active account in that currency, or when every such account would
+   * breach its monthly receiving cap.
+   *
+   * Advisory only: another payment can consume the headroom a moment later, so
+   * a `true` here is not a promise that the payment will succeed.
+   *
+   * @example
+   * ```typescript
+   * const { available } = await client.bankAccounts.checkAvailability({
+   *   amount: 1500,
+   *   currency: 'THB',
+   * });
+   * ```
+   */
+  async checkAvailability(params) {
+    const query = new URLSearchParams({
+      amount: String(params.amount),
+      currency: params.currency
+    });
+    return this.http.get(
+      `/bank-accounts/availability?${query.toString()}`
+    );
+  }
+};
+
 // src/resources/wallets.ts
 var Wallets = class {
   constructor(http) {
@@ -2424,6 +2543,7 @@ var TMSClient = class _TMSClient {
     this.billings = new Billings(this.http);
     this.invoices = new Invoices(this.http);
     this.payments = new Payments(this.http);
+    this.bankAccounts = new BankAccounts(this.http);
     this.rateCards = new RateCards(this.http);
     this.senderAccounts = new SenderAccounts(this.http);
     this.billingProfiles = new BillingProfiles(this.http);
@@ -2470,6 +2590,7 @@ var TMSClient = class _TMSClient {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   Address,
+  BankAccounts,
   BillingProfiles,
   Billings,
   DeliveryEvents,

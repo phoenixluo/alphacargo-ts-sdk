@@ -11,6 +11,8 @@ import type {
   VerifyBankSlipRequest,
   FlashPayRequest,
   FlashPayResponse,
+  PaymentMethodsParams,
+  PaymentMethodsResponse,
   PaginatedResponse,
 } from '../types';
 
@@ -269,5 +271,32 @@ export class Payments {
    */
   async generateFlashPayQR(data: FlashPayRequest): Promise<FlashPayResponse> {
     return this.initiateFlashPay(data);
+  }
+
+  /**
+   * Which payment methods may be used for a payment, and which of them will
+   * actually work right now.
+   *
+   * Render your payment picker from this rather than a hardcoded list: the
+   * organization decides which methods it accepts, and a service can narrow
+   * that further. Methods that cannot be used come back `available: false` with
+   * a reason, so show them greyed out rather than hiding them.
+   *
+   * Availability is advisory — it can change between this call and the payment.
+   *
+   * @example
+   * ```typescript
+   * const { methods, default: preselect } = await client.payments.methods({
+   *   invoice_id: 'invoice-uuid',
+   *   amount: 1500,
+   *   currency: 'THB',
+   * });
+   * ```
+   */
+  async methods(params?: PaymentMethodsParams): Promise<PaymentMethodsResponse> {
+    return this.http.get<PaymentMethodsResponse>(
+      '/payment-methods',
+      params as Record<string, unknown> | undefined
+    );
   }
 }

@@ -1,5 +1,6 @@
 import { HttpClient } from './utils';
 import {
+  BankAccounts,
   Waybills,
   Billings,
   Invoices,
@@ -69,6 +70,8 @@ export class TMSClient {
    * Payments resource for managing payments
    */
   public readonly payments: Payments;
+  /** Receiving bank accounts, read-only and payer-safe. */
+  public readonly bankAccounts: BankAccounts;
 
   /**
    * RateCards resource for managing rate cards
@@ -174,6 +177,7 @@ export class TMSClient {
     this.billings = new Billings(this.http);
     this.invoices = new Invoices(this.http);
     this.payments = new Payments(this.http);
+    this.bankAccounts = new BankAccounts(this.http);
     this.rateCards = new RateCards(this.http);
     this.senderAccounts = new SenderAccounts(this.http);
     this.billingProfiles = new BillingProfiles(this.http);

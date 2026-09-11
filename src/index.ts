@@ -20,6 +20,7 @@ export {
   Organizations,
   OrganizationUnits,
   ProductCategories,
+  BankAccounts,
   Wallets,
   Quotes,
   Address,
@@ -143,6 +144,9 @@ export type {
   AddressType,
   SenderAccountOwnershipRequest,
   SenderAccountOwnershipResponse,
+  ImportSenderAccountRow,
+  ImportSenderAccountsRequest,
+  ImportSenderAccountsResponse,
 
   // Package Label OCR
   PackageLabelOcrParams,
@@ -204,6 +208,9 @@ export type {
   CreateProductCategoryRequest,
   UpdateProductCategoryRequest,
   ListProductCategoriesParams,
+  PublicBankAccount,
+  BankTransferInstructions,
+  BankAccountAvailability,
 
   // Delivery Events
   DeliveryEventType,

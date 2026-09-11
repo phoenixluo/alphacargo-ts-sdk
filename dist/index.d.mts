@@ -553,6 +553,11 @@ interface Invoice {
     payment_terms?: string;
     created_at: string;
     line_items?: InvoiceLineItem[];
+    /**
+     * Only on a create response: this invoice already existed and was returned
+     * untouched (`reuse_existing`), rather than being created by that call.
+     */
+    reused?: boolean;
 }
 interface CreateInvoiceRequest {
     contractor_id?: string;
@@ -560,7 +565,11 @@ interface CreateInvoiceRequest {
     /**
      * Billings to invoice. They must all share one currency, which becomes the
      * invoice's currency — a mismatch is rejected with HTTP 400. Omit to create an
-     * empty invoice that defaults to the billing profile's currency.
+     * empty draft that defaults to the billing profile's currency.
+     *
+     * A billing already attached to an invoice is rejected with HTTP 400 naming
+     * that invoice; billings are never moved between invoices. Reuse the named
+     * invoice, or cancel it (which releases its billings) before re-billing.
      */
     billing_ids?: string[];
     period_start: string;
@@ -574,8 +583,30 @@ interface CreateInvoiceRequest {
      * the invoice total at creation time.
      */
     discount_amount?: number;
-    /** Initial status — 'draft' (default) or 'issued' to create and issue in one step */
+    /**
+     * Initial status — 'draft' (default) or 'issued' to create and issue in one
+     * step. Issuing requires at least one line item.
+     */
     status?: 'draft' | 'issued';
+    /**
+     * Cancel whatever invoice currently holds any of `billing_ids` and bill those
+     * lines here instead — for a customer who abandoned payment and came back
+     * with an overlapping selection. Cancelling releases the superseded invoice's
+     * lines, including any not selected this time, and cancels any payment still
+     * pending against it. Rejected with HTTP 400 when a superseded invoice has a
+     * completed payment.
+     */
+    supersede_existing?: boolean;
+    /**
+     * Return the invoice these lines are already on instead of failing, when every
+     * id in `billing_ids` sits on one live invoice — making the create idempotent
+     * for a caller whose first step of paying is creating the invoice. The
+     * returned invoice carries `reused: true`.
+     *
+     * Evaluated before `supersede_existing`, so passing both means "give me the
+     * existing invoice if it covers exactly this set, otherwise replace it".
+     */
+    reuse_existing?: boolean;
     /** Issue date (YYYY-MM-DD). Defaults to today when status='issued'. */
     issue_date?: string;
     /** Due date (YYYY-MM-DD). Defaults to issue_date + billing profile payment terms when status='issued'. */
@@ -677,18 +708,27 @@ interface ReplaceAllocationsRequest {
 interface BankSlip {
     id: string;
     payment_id: string;
-    slip_url: string;
-    bank_name: string;
+    /** The stored slip image. */
+    file_url: string;
+    /** Clearing code of the PAYER's bank, e.g. "014" for SCB. */
+    bank_code: string | null;
+    /** The PAYER's account number, when they supply it. */
+    bank_account_no?: string | null;
+    /** Reference the payer quoted for the transfer. */
+    transfer_reference?: string | null;
     transfer_date: string;
     transfer_amount: number;
-    transfer_reference?: string;
     verified?: boolean;
     verification_notes?: string;
     created_at: string;
 }
 interface CreateBankSlipRequest {
     slip_url: string;
-    bank_name: string;
+    /**
+     * The PAYER's bank as a clearing code, not a display name. This was
+     * `bank_name` and carried the full name, which the column rejected outright.
+     */
+    bank_code: string;
     transfer_date: string;
     transfer_amount: number;
     transfer_reference?: string;
@@ -697,7 +737,70 @@ interface VerifyBankSlipRequest {
     verified: boolean;
     verification_notes?: string;
 }
+/**
+ * An organization's receiving account, as a PAYER may see it.
+ *
+ * Only the fields needed to actually make a transfer. The operator's label, the
+ * account's monthly cap, its notes and its statement mapping are internal and
+ * never cross this boundary.
+ */
+interface PublicBankAccount {
+    bank_name: string;
+    bank_code: string | null;
+    account_number: string;
+    account_name: string;
+    branch: string | null;
+    currency: string;
+    qr_image_url: string | null;
+    instructions: string | null;
+}
+/** Where to send a bank transfer, and the reference that identifies it. */
+interface BankTransferInstructions {
+    reference_code: string;
+    account: PublicBankAccount;
+    amount: number;
+    currency: string;
+    expires_at: string | null;
+}
+interface BankAccountAvailability {
+    available: boolean;
+    currency: string;
+    /** `no_bank_account_available` when unavailable, else null. */
+    reason: string | null;
+}
 type FlashPayType = 'qr' | 'app';
+/** How a payer completes a method — the branch a client renders. */
+type PaymentMode = 'qr' | 'deeplink' | 'wechat_applet' | 'manual_transfer' | 'settled';
+/** Why an offered method cannot be used right now. */
+type PaymentMethodUnavailableReason = 'not_configured' | 'no_bank_account_available' | 'insufficient_balance' | 'currency_unsupported' | 'no_sender_account' | 'unavailable';
+interface AvailablePaymentMethod {
+    name: PaymentMethod;
+    /** Presentation shapes this method supports. */
+    modes: PaymentMode[];
+    available: boolean;
+    /** Present only when `available` is false. */
+    unavailable_reason?: PaymentMethodUnavailableReason;
+}
+interface PaymentMethodsResponse {
+    /** Allowed methods, in the order they should be shown. */
+    methods: AvailablePaymentMethod[];
+    /** The method to preselect, or null when nothing is enabled. */
+    default: PaymentMethod | null;
+}
+/**
+ * Query for the methods that may pay for something.
+ *
+ * Give `invoice_id` OR `service_id`, not both. With neither, only the
+ * organization's own enabled list applies. `amount` and `currency` matter
+ * because availability depends on the charge.
+ */
+interface PaymentMethodsParams {
+    invoice_id?: string;
+    service_id?: string;
+    sender_account_id?: string;
+    amount?: number;
+    currency?: string;
+}
 interface FlashPayRequest {
     amount: number;
     allocations: Array<{
@@ -873,6 +976,11 @@ interface SenderAccount {
     name: string;
     company_name?: string;
     sender_code: string;
+    /**
+     * Tenant's own alternate account code (per-org unique, free-form). Preserves a
+     * code from a migrated external TMS; usable as a lookup key in `get()`.
+     */
+    slug?: string | null;
     email?: string;
     phone?: string;
     type: string;
@@ -888,6 +996,8 @@ interface CreateSenderAccountRequest {
     type?: string;
     is_active?: boolean;
     sender_code?: string;
+    /** Tenant's own alternate account code (per-org unique, free-form). */
+    slug?: string | null;
     address_id?: string;
     metadata?: Record<string, unknown>;
 }
@@ -898,6 +1008,8 @@ interface UpdateSenderAccountRequest {
     phone?: string;
     address_id?: string;
     is_active?: boolean;
+    /** Tenant's own alternate account code (per-org unique, free-form). */
+    slug?: string | null;
     metadata?: Record<string, unknown>;
 }
 interface ListSenderAccountsParams {
@@ -905,6 +1017,29 @@ interface ListSenderAccountsParams {
     is_active?: boolean;
     limit?: number;
     offset?: number;
+}
+/** One row of a sender-account bulk import. */
+interface ImportSenderAccountRow {
+    name: string;
+    company_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    type?: string | null;
+    /** The tenant's legacy code — the idempotency key for re-runnable imports. */
+    slug?: string | null;
+}
+interface ImportSenderAccountsRequest {
+    rows: ImportSenderAccountRow[];
+}
+interface ImportSenderAccountsResponse {
+    created: number;
+    updated: number;
+    failed: number;
+    errors: Array<{
+        row: number;
+        slug?: string | null;
+        message: string;
+    }>;
 }
 interface SenderAccountOwnershipRequest {
     /** The sender account code read from a package label. */
@@ -2277,7 +2412,18 @@ declare class Invoices {
      *   billing_ids: ['billing-1', 'billing-2'],
      *   status: 'issued',
      * });
+     *
+     * // Idempotent: hand back the invoice these lines are already on
+     * const invoice = await client.invoices.create({ ..., reuse_existing: true });
+     * if (invoice.reused) console.log('already invoiced as', invoice.invoice_no);
      * ```
+     *
+     * @throws TMSApiError with `statusCode` 409 when the lines already belong to
+     * an invoice and neither `reuse_existing` nor `supersede_existing` applies.
+     * `details.code` is a stable slug (`billings_already_invoiced`,
+     * `billings_span_multiple_invoices`, `invoice_not_supersedable`,
+     * `billings_already_settled`) and `details.invoices` lists the invoices
+     * involved with their id, number and status — no message parsing needed.
      */
     create(data: CreateInvoiceRequest): Promise<Invoice>;
     /**
@@ -2577,6 +2723,27 @@ declare class Payments {
      * @deprecated Use initiateFlashPay instead
      */
     generateFlashPayQR(data: FlashPayRequest): Promise<FlashPayResponse>;
+    /**
+     * Which payment methods may be used for a payment, and which of them will
+     * actually work right now.
+     *
+     * Render your payment picker from this rather than a hardcoded list: the
+     * organization decides which methods it accepts, and a service can narrow
+     * that further. Methods that cannot be used come back `available: false` with
+     * a reason, so show them greyed out rather than hiding them.
+     *
+     * Availability is advisory — it can change between this call and the payment.
+     *
+     * @example
+     * ```typescript
+     * const { methods, default: preselect } = await client.payments.methods({
+     *   invoice_id: 'invoice-uuid',
+     *   amount: 1500,
+     *   currency: 'THB',
+     * });
+     * ```
+     */
+    methods(params?: PaymentMethodsParams): Promise<PaymentMethodsResponse>;
 }
 
 /**
@@ -2688,18 +2855,42 @@ declare class SenderAccounts {
      */
     list(params?: ListSenderAccountsParams): Promise<ListSenderAccountsResponse>;
     /**
-     * Get a single sender account by ID or sender_code
+     * Get a single sender account by ID, sender_code, or slug
      *
-     * @param id - Sender account ID or sender_code
+     * @param id - Sender account ID, sender_code, or slug (the tenant's own
+     *   alternate/legacy account code)
      * @returns Sender account details
      *
      * @example
      * ```typescript
      * const account = await client.senderAccounts.get('account-uuid');
-     * console.log(account.sender_code); // 'ACME001'
+     * console.log(account.sender_code); // 'ACMEE'
+     * // Also resolves by the tenant's migrated code:
+     * const bySlug = await client.senderAccounts.get('EK-XXMF-BBFLC');
      * ```
      */
     get(id: string): Promise<SenderAccount>;
+    /**
+     * Bulk-import sender accounts migrated from another TMS system.
+     *
+     * Idempotent per-row on `slug` (the tenant's legacy code): a row whose slug
+     * already exists in the org updates that account; otherwise a new account is
+     * created with a freshly-generated internal `sender_code`. Safe to re-run.
+     *
+     * @param data - The rows to import
+     * @returns Summary of created / updated / failed rows
+     *
+     * @example
+     * ```typescript
+     * const summary = await client.senderAccounts.import({
+     *   rows: [
+     *     { name: 'Acme Corp', slug: 'EK-XXMF-BBFLC', phone: '0812345678' },
+     *   ],
+     * });
+     * console.log(summary.created, summary.updated, summary.failed);
+     * ```
+     */
+    import(data: ImportSenderAccountsRequest): Promise<ImportSenderAccountsResponse>;
     /**
      * Create a new sender account
      *
@@ -3397,6 +3588,61 @@ declare class ProductCategories {
 }
 
 /**
+ * Receiving bank accounts — where an organization's customers send money for
+ * the `bank_transfer` payment method.
+ *
+ * Read-only over the SDK, and only the payer-safe projection. Managing accounts
+ * (caps, priority, statement mappings) is an operator surface in the TMS app,
+ * because those settings decide how inbound volume is spread and are not the
+ * business of an API client.
+ *
+ * Not to be confused with a bank slip, which is the PAYER's evidence of having
+ * sent money and describes THEIR account.
+ */
+declare class BankAccounts {
+    private readonly http;
+    constructor(http: HttpClient);
+    /**
+     * List the active receiving accounts, as a payer may see them.
+     *
+     * @param params.currency - Only accounts denominated in this currency. Worth
+     * passing: money can only be received into an account in its own currency, so
+     * an account in the wrong one is never a valid answer.
+     *
+     * @example
+     * ```typescript
+     * const accounts = await client.bankAccounts.list({ currency: 'THB' });
+     * ```
+     */
+    list(params?: {
+        currency?: string;
+    }): Promise<PublicBankAccount[]>;
+    /**
+     * Whether a bank transfer can be offered for this amount and currency.
+     *
+     * Call it before showing the option, so a customer is never handed a payment
+     * method that immediately dead-ends. It comes back false when the organization
+     * holds no active account in that currency, or when every such account would
+     * breach its monthly receiving cap.
+     *
+     * Advisory only: another payment can consume the headroom a moment later, so
+     * a `true` here is not a promise that the payment will succeed.
+     *
+     * @example
+     * ```typescript
+     * const { available } = await client.bankAccounts.checkAvailability({
+     *   amount: 1500,
+     *   currency: 'THB',
+     * });
+     * ```
+     */
+    checkAvailability(params: {
+        amount: number;
+        currency: string;
+    }): Promise<BankAccountAvailability>;
+}
+
+/**
  * Wallets resource — prepaid deposit balances.
  *
  * A wallet is a single money ledger per sender account. Top-ups are funded
@@ -3621,6 +3867,8 @@ declare class TMSClient {
      * Payments resource for managing payments
      */
     readonly payments: Payments;
+    /** Receiving bank accounts, read-only and payer-safe. */
+    readonly bankAccounts: BankAccounts;
     /**
      * RateCards resource for managing rate cards
      */
@@ -3718,4 +3966,4 @@ declare class TMSClient {
     withLanguage(language?: TMSLanguage): TMSClient;
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type AllocateWaybillNumberResponse, type BankSlip, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateProductCategoryRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateShippingFeeRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListProductCategoriesParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PackageLabelOcrParams, type PackageLabelOcrResponse, type PackageLabelOcrResult, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, ProductCategories, type ProductCategory, type ProductCategoryTreeNode, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, ShippingFee, type ShippingFeeBreakdownLine, type ShippingFeeDimensions, type ShippingFeeResponse, type SplitPackageRequest, type SplitPackageResponse, type SplitPart, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateProductCategoryRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillServiceCount, type WaybillServiceCountParams, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type AllocateWaybillNumberResponse, type BankAccountAvailability, BankAccounts, type BankSlip, type BankTransferInstructions, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateProductCategoryRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateShippingFeeRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type ImportSenderAccountRow, type ImportSenderAccountsRequest, type ImportSenderAccountsResponse, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListProductCategoriesParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PackageLabelOcrParams, type PackageLabelOcrResponse, type PackageLabelOcrResult, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentStatus, type PaymentTerms, Payments, type Product, ProductCategories, type ProductCategory, type ProductCategoryTreeNode, type PublicBankAccount, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, ShippingFee, type ShippingFeeBreakdownLine, type ShippingFeeDimensions, type ShippingFeeResponse, type SplitPackageRequest, type SplitPackageResponse, type SplitPart, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateProductCategoryRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillServiceCount, type WaybillServiceCountParams, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };

@@ -111,6 +111,11 @@ export type {
   FlashPayResponse,
   FlashPayQRResponse,
   FlashPayAppResponse,
+  PaymentMode,
+  PaymentMethodUnavailableReason,
+  AvailablePaymentMethod,
+  PaymentMethodsResponse,
+  PaymentMethodsParams,
 
   // Wallet
   WalletTransactionType,

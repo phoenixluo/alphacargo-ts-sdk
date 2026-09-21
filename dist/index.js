@@ -42,6 +42,7 @@ __export(index_exports, {
   WaybillRoutes: () => WaybillRoutes,
   Waybills: () => Waybills,
   canonicalizeJson: () => canonicalizeJson,
+  generateKeyedSignature: () => generateKeyedSignature,
   generateNonce: () => generateNonce,
   generateSignature: () => generateSignature,
   getTimestamp: () => getTimestamp,
@@ -86,6 +87,27 @@ async function generateSignature(params, _apiSecret) {
   console.log("[TMS SDK] generateSignature - result:", signature);
   return signature;
 }
+async function generateKeyedSignature(params, apiSecret) {
+  const { sign, ...paramsWithoutSign } = params;
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(apiSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(canonicalizeJson(paramsWithoutSign)));
+  return Array.from(new Uint8Array(mac)).map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+function constantTimeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
 async function verifyWebhookSignature(body, options) {
   const { sign, ...payloadWithoutSign } = body;
   if (!sign || typeof sign !== "string") {
@@ -102,11 +124,19 @@ async function verifyWebhookSignature(body, options) {
       return { valid: false, error: "Request expired" };
     }
   }
-  const expectedSign = await generateSignature(payloadWithoutSign);
-  if (sign !== expectedSign) {
-    return { valid: false, error: "Invalid signature" };
+  if (options?.apiSecret) {
+    const keyed = await generateKeyedSignature(payloadWithoutSign, options.apiSecret);
+    if (constantTimeEqual(sign, keyed)) {
+      return { valid: true, scheme: "keyed" };
+    }
   }
-  return { valid: true };
+  if (!options?.requireSecret) {
+    const unkeyed = await generateSignature(payloadWithoutSign);
+    if (constantTimeEqual(sign, unkeyed)) {
+      return { valid: true, scheme: "unkeyed" };
+    }
+  }
+  return { valid: false, error: "Invalid signature" };
 }
 function generateNonce(length = 32) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -144,6 +174,7 @@ var HttpClient = class {
     this.apiSecret = config.apiSecret;
     this.timeout = config.timeout ?? 3e4;
     this.headers = config.headers ?? {};
+    this.signatureScheme = config.signatureScheme ?? "sha256";
     this.language = config.language;
   }
   /**
@@ -165,7 +196,7 @@ var HttpClient = class {
     };
     console.log("[TMS SDK] signRequest - apiKey:", this.apiKey);
     console.log("[TMS SDK] signRequest - body keys:", Object.keys(signedBody).sort().join(", "));
-    signedBody.sign = await generateSignature(signedBody, this.apiSecret);
+    signedBody.sign = this.signatureScheme === "hmac-sha256" ? await generateKeyedSignature(signedBody, this.apiSecret) : await generateSignature(signedBody, this.apiSecret);
     console.log("[TMS SDK] signRequest - final signed body:", JSON.stringify(signedBody, null, 2));
     return signedBody;
   }
@@ -180,7 +211,8 @@ var HttpClient = class {
       // Localize error messages when a language is configured. Explicit custom
       // headers still win, since they are spread last.
       ...this.language ? { "Accept-Language": this.language } : {},
-      ...this.headers
+      ...this.headers,
+      ...options?.headers
     };
     const fetchOptions = {
       method,
@@ -234,8 +266,8 @@ var HttpClient = class {
   /**
    * POST request
    */
-  async post(path, body) {
-    return this.request("POST", path, { body });
+  async post(path, body, headers) {
+    return this.request("POST", path, { body, headers });
   }
   /**
    * PUT request
@@ -543,9 +575,12 @@ var Waybills = class {
    * @example
    * ```typescript
    * const pkg = await client.waybills.addPackage('TH24020001', {
-   *   external_package_no: 'PKG-002',
-   *   weight: 2.5,
-   *   products: [{ name: 'Keyboard', sku: 'SKU-002', quantity: 1 }]
+   *   parcel: {
+   *     outParcelNo: 'PKG-002',
+   *     itemDesc: 'Keyboards',
+   *     weight: 2.5,
+   *     productList: [{ name: 'Keyboard', sku: 'SKU-002', quantity: 1 }],
+   *   },
    * });
    * console.log(pkg.package_no); // 'TH24020001-002'
    * ```
@@ -2404,7 +2439,12 @@ var Quotes = class {
    * Selects a vehicle/pricing source for the shipment and persists a quotation,
    * returning the quote ID along with the resolved provider and vehicle.
    *
+   * A quote needs no owner. When you already know which sender account it is
+   * for, pass `senderAccountId` (sent as the `X-Sender-Account-Id` header); it
+   * must belong to your organization.
+   *
    * @param data - Quote request (cargo, addresses, aggregates)
+   * @param options - `senderAccountId`: the sender account that owns the quote
    * @returns The created quotation
    *
    * @example
@@ -2428,10 +2468,11 @@ var Quotes = class {
    * console.log(quote.quotation_id, quote.provider, quote.vehicle);
    * ```
    */
-  async create(data) {
+  async create(data, options) {
     return this.http.post(
-      "/quote",
-      data
+      "/quotes",
+      data,
+      options?.senderAccountId ? { "X-Sender-Account-Id": options.senderAccountId } : void 0
     );
   }
 };
@@ -2611,6 +2652,7 @@ var TMSClient = class _TMSClient {
   WaybillRoutes,
   Waybills,
   canonicalizeJson,
+  generateKeyedSignature,
   generateNonce,
   generateSignature,
   getTimestamp,

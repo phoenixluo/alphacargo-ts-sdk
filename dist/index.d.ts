@@ -26,6 +26,26 @@ interface Product {
     length?: number;
     height?: number;
 }
+/**
+ * Cargo handling for load planning. Every field is optional; unset fields
+ * inherit from the waybill's product category (`load_defaults`), then from the
+ * default (upright, may turn, stackable).
+ */
+interface LoadProperties {
+    /** `longship`: upright, lengthwise only; `rotatable`: upright, may turn; `tiltable`: any side up */
+    orientation?: 'longship' | 'rotatable' | 'tiltable';
+    /** Other cargo may be placed on top */
+    stackable?: boolean;
+    /** Nothing may be placed on top (overrides `stackable`) */
+    fragile?: boolean;
+    /** Must stand on the vehicle floor */
+    bottom_only?: boolean;
+    /** Most units in one stack (1–100) */
+    max_layers?: number;
+    /** Most weight that may rest on one unit, kg */
+    max_load_kg?: number;
+    geometry?: 'box' | 'cylinder';
+}
 interface Parcel {
     outParcelNo: string;
     itemDesc: string;
@@ -42,6 +62,8 @@ interface Parcel {
     piece_count?: number;
     productList: Product[];
     photos?: string[];
+    /** Cargo handling for load planning */
+    load_properties?: LoadProperties;
 }
 interface CreateWaybillRequest {
     outTradeNo: string;
@@ -303,14 +325,30 @@ interface WaybillDetails {
     /** Add-on / additional services attached to the waybill */
     additional_services?: AdditionalService[];
 }
-interface AddPackageRequest {
-    external_package_no: string;
+/** The parcel added to a waybill by {@link AddPackageRequest}. */
+interface AddParcel {
+    /** External package number */
+    outParcelNo: string;
+    /** Item description; stored as the package's notes */
+    itemDesc: string;
+    itemValue?: number;
+    /** Weight in kg, per piece when `piece_count` > 1 */
     weight?: number;
-    width?: number;
     length?: number;
+    width?: number;
     height?: number;
-    notes?: string;
-    products?: Product[];
+    /** Number of identical pieces this parcel represents as one lot (default 1) */
+    piece_count?: number;
+    /** Cargo handling for load planning */
+    load_properties?: LoadProperties;
+    /** At least one product */
+    productList: Product[];
+    photos?: string[];
+    /** Package ids this package physically contains (consolidation) */
+    containedPackageIds?: string[];
+}
+interface AddPackageRequest {
+    parcel: AddParcel;
 }
 interface AddPackageResponse {
     package_no: string;
@@ -1522,6 +1560,8 @@ interface ProductCategory {
     description: string | null;
     is_active: boolean;
     sort_order: number;
+    /** Default cargo handling for waybills in this category and its subcategories */
+    load_defaults: LoadProperties;
     metadata: Record<string, unknown> | null;
     created_at: string;
     updated_at: string;
@@ -1537,6 +1577,8 @@ interface CreateProductCategoryRequest {
     description?: string | null;
     is_active?: boolean;
     sort_order?: number;
+    /** Default cargo handling for load planning */
+    load_defaults?: LoadProperties;
 }
 interface UpdateProductCategoryRequest {
     name?: string;
@@ -1545,6 +1587,8 @@ interface UpdateProductCategoryRequest {
     description?: string | null;
     is_active?: boolean;
     sort_order?: number;
+    /** Replaces the category's handling defaults */
+    load_defaults?: LoadProperties;
 }
 interface ListProductCategoriesParams {
     /** When true, returns the nested tree via {@link ProductCategoriesTreeResponse} instead of a flat list */
@@ -1592,16 +1636,20 @@ interface QuoteAggregates {
 }
 type QuoteServiceType = 'ftl_transport' | 'ltl_transport';
 interface CreateQuoteRequest {
-    /** Caller-supplied idempotency/correlation ID (echoed back in the response). */
-    request_id: string;
-    draft_order_id: string;
-    /** Draft order version (integer >= 0). */
-    draft_order_version: number;
+    /** Caller-supplied correlation ID (echoed back). Generated when omitted. */
+    request_id?: string;
+    /** Your own reference for the cargo being priced. Generated when omitted. */
+    draft_order_id?: string;
+    /** Draft order version (integer >= 0). Defaults to 1. */
+    draft_order_version?: number;
+    /** Geocoded server-side when `lat`/`lng` are omitted. */
     pickup: QuoteAddress;
+    /** Geocoded server-side when `lat`/`lng` are omitted. */
     delivery: QuoteAddress;
     /** Cargo items (min 1). */
     items: QuoteItem[];
-    aggregates: QuoteAggregates;
+    /** Shipment totals. Computed from `items` when omitted. */
+    aggregates?: QuoteAggregates;
     /** Defaults to "ftl_transport". */
     service_type?: QuoteServiceType;
     cargo_notes?: string | null;
@@ -1609,14 +1657,6 @@ interface CreateQuoteRequest {
     addons?: {
         key: string;
     }[];
-    customer_chat?: {
-        platform: 'line' | 'wechat';
-        user_id: string;
-    } | null;
-    customer?: {
-        name?: string | null;
-        phone?: string | null;
-    } | null;
     /** Min vehicle weight utilization, 0–1 (default 0). */
     min_weight_fullness?: number;
     /** Min vehicle volume utilization, 0–1 (default 0). */
@@ -1731,6 +1771,14 @@ interface TMSClientConfig {
      */
     apiSecret: string;
     /**
+     * How requests are signed.
+     * - `'sha256'` (default, for now): SHA-256 of the canonical JSON. The secret is
+     *   not part of it — being phased out.
+     * - `'hmac-sha256'`: HMAC-SHA256 keyed with `apiSecret`. Requires a TMS that
+     *   accepts keyed signatures; it will become the default, then the only scheme.
+     */
+    signatureScheme?: 'sha256' | 'hmac-sha256';
+    /**
      * Request timeout in milliseconds (default: 30000)
      */
     timeout?: number;
@@ -1767,20 +1815,37 @@ declare function canonicalizeJson(obj: unknown): string;
  */
 declare function generateSignature(params: Record<string, unknown>, _apiSecret?: string): Promise<string>;
 /**
+ * Generate the keyed signature: `HMAC-SHA256(apiSecret, canonicalJson(params
+ * without sign))`, uppercase hex.
+ *
+ * `generateSignature` is a bare SHA-256 — the secret never enters it, so it
+ * proves only knowledge of the `api_key`. This is its replacement. The TMS
+ * accepts both while clients move over (`signatureScheme` in the client config).
+ */
+declare function generateKeyedSignature(params: Record<string, unknown>, apiSecret: string): Promise<string>;
+/**
  * Verify a webhook signature from TMS.
  * Takes the parsed JSON body of the webhook request and validates the `sign` field.
+ *
+ * Pass `apiSecret` — the secret of the `api_key` in the body. Without it only the
+ * unkeyed signature can be checked, which anyone who knows the `api_key` can
+ * forge. With it, a keyed (HMAC) signature is accepted, and the unkeyed one still
+ * is until you set `requireSecret: true` — do that once the TMS signs with the
+ * secret. The result's `scheme` says which one the request used.
  *
  * @param body - The parsed JSON body of the webhook request
  * @param options - Optional verification settings
  * @param options.maxAgeMs - Maximum age of the request in milliseconds (default: 5 minutes). Set to 0 to disable.
- * @returns Object with `valid` boolean and optional `error` message
+ * @param options.apiSecret - Secret paired with the body's `api_key`
+ * @param options.requireSecret - Reject unkeyed signatures (default: false)
+ * @returns Object with `valid` boolean, the `scheme` used, and optional `error` message
  *
  * @example
  * ```typescript
  * import { verifyWebhookSignature } from '@alphacargo/tms-sdk';
  *
  * app.post('/webhooks/delivery-events', async (req, res) => {
- *   const result = await verifyWebhookSignature(req.body);
+ *   const result = await verifyWebhookSignature(req.body, { apiSecret: process.env.TMS_API_SECRET });
  *   if (!result.valid) {
  *     return res.status(401).json({ error: result.error });
  *   }
@@ -1791,8 +1856,11 @@ declare function generateSignature(params: Record<string, unknown>, _apiSecret?:
  */
 declare function verifyWebhookSignature(body: Record<string, unknown>, options?: {
     maxAgeMs?: number;
+    apiSecret?: string;
+    requireSecret?: boolean;
 }): Promise<{
     valid: boolean;
+    scheme?: 'keyed' | 'unkeyed';
     error?: string;
 }>;
 /**
@@ -1821,6 +1889,7 @@ declare class HttpClient {
     private readonly apiSecret;
     private readonly timeout;
     private readonly headers;
+    private readonly signatureScheme;
     private language?;
     constructor(config: TMSClientConfig);
     /**
@@ -1840,6 +1909,8 @@ declare class HttpClient {
         body?: Record<string, unknown>;
         query?: Record<string, unknown>;
         sign?: boolean;
+        /** Extra headers for this request only; they win over the client-wide ones. */
+        headers?: Record<string, string>;
     }): Promise<T>;
     /**
      * GET request
@@ -1848,7 +1919,7 @@ declare class HttpClient {
     /**
      * POST request
      */
-    post<T>(path: string, body?: Record<string, unknown>): Promise<T>;
+    post<T>(path: string, body?: Record<string, unknown>, headers?: Record<string, string>): Promise<T>;
     /**
      * PUT request
      */
@@ -2083,9 +2154,12 @@ declare class Waybills {
      * @example
      * ```typescript
      * const pkg = await client.waybills.addPackage('TH24020001', {
-     *   external_package_no: 'PKG-002',
-     *   weight: 2.5,
-     *   products: [{ name: 'Keyboard', sku: 'SKU-002', quantity: 1 }]
+     *   parcel: {
+     *     outParcelNo: 'PKG-002',
+     *     itemDesc: 'Keyboards',
+     *     weight: 2.5,
+     *     productList: [{ name: 'Keyboard', sku: 'SKU-002', quantity: 1 }],
+     *   },
      * });
      * console.log(pkg.package_no); // 'TH24020001-002'
      * ```
@@ -3709,10 +3783,10 @@ declare class Wallets {
 /**
  * Quotes resource for the FTL/LTL shipping-quote flow.
  *
- * Only quote creation is exposed here: `POST /api/quote` uses signature
+ * Only quote creation is exposed here: `POST /api/quotes` uses signature
  * authentication (the API key), which is what this SDK is built around. The
- * downstream quote operations — `GET /api/quote/{id}`, `POST /api/quote/{id}/pay`,
- * `POST /api/quote/{id}/cancel`, and `GET /api/orders/{id}/tracking` — are
+ * downstream quote operations — `GET /api/quotes/{id}`, `POST /api/quotes/{id}/pay`,
+ * `POST /api/quotes/{id}/cancel`, and `GET /api/orders/{id}/tracking` — are
  * authenticated with the customer's sender-account session cookie, not an API
  * key, so they are not part of this server-to-server SDK.
  */
@@ -3725,7 +3799,12 @@ declare class Quotes {
      * Selects a vehicle/pricing source for the shipment and persists a quotation,
      * returning the quote ID along with the resolved provider and vehicle.
      *
+     * A quote needs no owner. When you already know which sender account it is
+     * for, pass `senderAccountId` (sent as the `X-Sender-Account-Id` header); it
+     * must belong to your organization.
+     *
      * @param data - Quote request (cargo, addresses, aggregates)
+     * @param options - `senderAccountId`: the sender account that owns the quote
      * @returns The created quotation
      *
      * @example
@@ -3749,7 +3828,9 @@ declare class Quotes {
      * console.log(quote.quotation_id, quote.provider, quote.vehicle);
      * ```
      */
-    create(data: CreateQuoteRequest): Promise<CreateQuoteResponse>;
+    create(data: CreateQuoteRequest, options?: {
+        senderAccountId?: string;
+    }): Promise<CreateQuoteResponse>;
 }
 
 /**
@@ -3966,4 +4047,4 @@ declare class TMSClient {
     withLanguage(language?: TMSLanguage): TMSClient;
 }
 
-export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type AllocateWaybillNumberResponse, type AvailablePaymentMethod, type BankAccountAvailability, BankAccounts, type BankSlip, type BankTransferInstructions, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateProductCategoryRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateShippingFeeRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type ImportSenderAccountRow, type ImportSenderAccountsRequest, type ImportSenderAccountsResponse, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListProductCategoriesParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PackageLabelOcrParams, type PackageLabelOcrResponse, type PackageLabelOcrResult, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentMethodUnavailableReason, type PaymentMethodsParams, type PaymentMethodsResponse, type PaymentMode, type PaymentStatus, type PaymentTerms, Payments, type Product, ProductCategories, type ProductCategory, type ProductCategoryTreeNode, type PublicBankAccount, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, ShippingFee, type ShippingFeeBreakdownLine, type ShippingFeeDimensions, type ShippingFeeResponse, type SplitPackageRequest, type SplitPackageResponse, type SplitPart, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateProductCategoryRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillServiceCount, type WaybillServiceCountParams, type WaybillSummary, Waybills, canonicalizeJson, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };
+export { type AddPackageRequest, type AddPackageResponse, type AdditionalService, Address, type AddressResolveByCoords, type AddressResolveByText, type AddressResolveByUrl, type AddressResolveOptions, type AddressResolveRequest, type AddressType, type AllocateWaybillNumberResponse, type AvailablePaymentMethod, type BankAccountAvailability, BankAccounts, type BankSlip, type BankTransferInstructions, type BatchLabelRequest, type BillingByServiceParams, type BillingByServiceReport, type BillingCycle, type BillingCycleRun, type BillingEmailRequest, type BillingProfile, BillingProfiles, type BillingRecord, type BillingStatus, type BillingType, Billings, type ConsolidateWaybillsRequest, type ConsolidateWaybillsResponse, type CreateAdditionalServicesRequest, type CreateBankSlipRequest, type CreateBillingProfileRequest, type CreateBillingRequest, type CreateDeliveryEventRequest, type CreateInvoiceRequest, type CreateOrganizationUnitRequest, type CreatePaymentRequest, type CreateProductCategoryRequest, type CreateQuoteRequest, type CreateQuoteResponse, type CreateRateCardRequest, type CreateSenderAccountRecipientAddress, type CreateSenderAccountRecipientRequest, type CreateSenderAccountRequest, type CreateShippingFeeRequest, type CreateWaybillRequest, type CreateWaybillResponse, type CycleRunStatus, type DateRangeParams, type DeliveryEvent, type DeliveryEventType, DeliveryEvents, type FlashPayAppResponse, type FlashPayQRResponse, type FlashPayRequest, type FlashPayResponse, type FlashPayType, type GeocodeSource, type GetLabelParams, type ImportSenderAccountRow, type ImportSenderAccountsRequest, type ImportSenderAccountsResponse, type Invoice, type InvoiceLineItem, type InvoiceStatus, Invoices, type IssueInvoiceRequest, type LabelFormat, type LabelSize, type ListBillingProfilesParams, type ListBillingsParams, type ListCycleRunsParams, type ListInvoicesParams, type ListOrganizationUnitsParams, type ListPaymentsParams, type ListProductCategoriesParams, type ListRateCardsParams, type ListRegionsParams, type ListSenderAccountRecipientsParams, type ListSenderAccountsParams, type ListWalletTransactionsParams, type ListWaybillRoutesParams, type Organization, type OrganizationUnit, type OrganizationUnitAddress, type OrganizationUnitType, OrganizationUnits, Organizations, type OutstandingInvoicesParams, type OutstandingInvoicesReport, type PackageLabelOcrParams, type PackageLabelOcrResponse, type PackageLabelOcrResult, type PaginatedResponse, type PaginationParams, type Parcel, type PayInvoiceWithWalletRequest, type PayInvoiceWithWalletResponse, type Payment, type PaymentAllocation, type PaymentHistoryParams, type PaymentHistoryReport, type PaymentMethod, type PaymentMethodUnavailableReason, type PaymentMethodsParams, type PaymentMethodsResponse, type PaymentMode, type PaymentStatus, type PaymentTerms, Payments, type Product, ProductCategories, type ProductCategory, type ProductCategoryTreeNode, type PublicBankAccount, type QuoteAddress, type QuoteAggregates, type QuoteBreakdownLine, type QuoteItem, type QuoteServiceType, Quotes, type RateCard, RateCards, type RecipientAddress, type RecipientInput, type RegionCity, type RegionDistrict, type RegionHierarchy, type RegionProvince, Regions, type ReplaceAllocationsRequest, type ReportDateRangeParams, type ReportPeriod, Reports, type ResolvedAddress, type RevenueSummaryParams, type RevenueSummaryReport, type SendEmailRequest, type SendInvoiceEmailRequest, type SenderAccount, type SenderAccountOwnershipRequest, type SenderAccountOwnershipResponse, type SenderAccountRecipient, SenderAccounts, ShippingFee, type ShippingFeeBreakdownLine, type ShippingFeeDimensions, type ShippingFeeResponse, type SplitPackageRequest, type SplitPackageResponse, type SplitPart, TMSApiError, TMSClient, type TMSClientConfig, type TMSError, type TMSLanguage, type TopUpWalletRequest, type TrackingRoute, type TriggerCycleRequest, type UpdateAdditionalServiceRequest, type UpdateBillingProfileRequest, type UpdateBillingRequest, type UpdateInvoiceRequest, type UpdateOrganizationRequest, type UpdateOrganizationUnitRequest, type UpdatePaymentRequest, type UpdateProductCategoryRequest, type UpdateRateCardRequest, type UpdateSenderAccountRecipientRequest, type UpdateSenderAccountRequest, type VerifyBankSlipRequest, type WalletBalance, type WalletTopUpAppResponse, type WalletTopUpQRResponse, type WalletTopUpResponse, type WalletTransaction, type WalletTransactionType, type WalletTransactionsResponse, Wallets, type WaybillAddress, type WaybillBillingRecord, type WaybillDelegation, type WaybillDetails, type WaybillEvents, type WaybillListParams, type WaybillPackage, type WaybillPackageSummary, type WaybillRecipient, type WaybillRoute, type WaybillRouteLeg, type WaybillRouteUnit, type WaybillRouteUnitAddress, type WaybillRouteWithLegs, WaybillRoutes, type WaybillServiceCount, type WaybillServiceCountParams, type WaybillSummary, Waybills, canonicalizeJson, generateKeyedSignature, generateNonce, generateSignature, getTimestamp, verifyWebhookSignature };

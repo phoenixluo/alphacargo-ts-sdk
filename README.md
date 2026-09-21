@@ -81,6 +81,32 @@ console.log('Waybill created:', waybill.waybill_no);
 | `timeout` | number | No | Request timeout in ms (default: 30000) |
 | `language` | string | No | Preferred language for error messages (`en`, `th`, `zh`). Sent as `Accept-Language`. Defaults to English. |
 | `headers` | object | No | Custom headers to include in all requests |
+| `signatureScheme` | string | No | `'sha256'` (default, for now) or `'hmac-sha256'`. See **Request signing** |
+
+### Request signing
+
+Every request carries `api_key`, `nonceStr` and `sign`. With the default
+`'sha256'` scheme, `sign` is a plain hash of the request — **your `apiSecret` is
+not part of it**, so it only proves knowledge of the `apiKey`. Set
+`signatureScheme: 'hmac-sha256'` to sign with the secret
+(`HMAC-SHA256(apiSecret, canonicalJson)`); it needs a TMS that accepts keyed
+signatures, and will become the default and then the only scheme.
+
+### Verifying webhooks
+
+```typescript
+import { verifyWebhookSignature } from '@alphacargo/tms-sdk';
+
+const result = await verifyWebhookSignature(req.body, {
+  apiSecret: process.env.TMS_API_SECRET, // secret of the api_key in the body
+  // requireSecret: true,                // once the TMS signs with the secret
+});
+if (!result.valid) return res.status(401).json({ error: result.error });
+// result.scheme is 'keyed' or 'unkeyed'
+```
+
+Without `apiSecret` only the unkeyed signature can be checked, which anyone who
+knows the `api_key` can forge.
 
 ### Localized error messages
 
@@ -466,7 +492,8 @@ writeFileSync('report.csv', Buffer.from(csv));
 ### Quotes
 
 ```typescript
-// Create an FTL/LTL shipping quotation
+// Create an FTL/LTL shipping quotation. To bind it to a sender account of your
+// organization, pass `{ senderAccountId }` as the second argument.
 const quote = await client.quotes.create({
   request_id: 'req-123',
   draft_order_id: 'draft-456',
@@ -493,7 +520,7 @@ console.log(quote.breakdown); // [{ kind: 'base', amount }, { kind: 'addon', key
 > and stored on the quotation — there is no draft-order entity in the TMS, so you
 > don't need to create one first.
 
-> Quote creation (`POST /api/quote`) uses your API key (signature auth). The
+> Quote creation (`POST /api/quotes`) uses your API key (signature auth). The
 > customer-facing quote operations (view, pay, cancel, order tracking) are
 > authenticated with a sender-account session, not an API key, so they are not
 > exposed by this server-to-server SDK.

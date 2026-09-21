@@ -63,20 +63,63 @@ export async function generateSignature(
 }
 
 /**
+ * Generate the keyed signature: `HMAC-SHA256(apiSecret, canonicalJson(params
+ * without sign))`, uppercase hex.
+ *
+ * `generateSignature` is a bare SHA-256 — the secret never enters it, so it
+ * proves only knowledge of the `api_key`. This is its replacement. The TMS
+ * accepts both while clients move over (`signatureScheme` in the client config).
+ */
+export async function generateKeyedSignature(
+  params: Record<string, unknown>,
+  apiSecret: string
+): Promise<string> {
+  const { sign, ...paramsWithoutSign } = params;
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(apiSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(canonicalizeJson(paramsWithoutSign)));
+  return Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+/** Length-constant string comparison. */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+/**
  * Verify a webhook signature from TMS.
  * Takes the parsed JSON body of the webhook request and validates the `sign` field.
+ *
+ * Pass `apiSecret` — the secret of the `api_key` in the body. Without it only the
+ * unkeyed signature can be checked, which anyone who knows the `api_key` can
+ * forge. With it, a keyed (HMAC) signature is accepted, and the unkeyed one still
+ * is until you set `requireSecret: true` — do that once the TMS signs with the
+ * secret. The result's `scheme` says which one the request used.
  *
  * @param body - The parsed JSON body of the webhook request
  * @param options - Optional verification settings
  * @param options.maxAgeMs - Maximum age of the request in milliseconds (default: 5 minutes). Set to 0 to disable.
- * @returns Object with `valid` boolean and optional `error` message
+ * @param options.apiSecret - Secret paired with the body's `api_key`
+ * @param options.requireSecret - Reject unkeyed signatures (default: false)
+ * @returns Object with `valid` boolean, the `scheme` used, and optional `error` message
  *
  * @example
  * ```typescript
  * import { verifyWebhookSignature } from '@alphacargo/tms-sdk';
  *
  * app.post('/webhooks/delivery-events', async (req, res) => {
- *   const result = await verifyWebhookSignature(req.body);
+ *   const result = await verifyWebhookSignature(req.body, { apiSecret: process.env.TMS_API_SECRET });
  *   if (!result.valid) {
  *     return res.status(401).json({ error: result.error });
  *   }
@@ -87,8 +130,8 @@ export async function generateSignature(
  */
 export async function verifyWebhookSignature(
   body: Record<string, unknown>,
-  options?: { maxAgeMs?: number }
-): Promise<{ valid: boolean; error?: string }> {
+  options?: { maxAgeMs?: number; apiSecret?: string; requireSecret?: boolean }
+): Promise<{ valid: boolean; scheme?: 'keyed' | 'unkeyed'; error?: string }> {
   const { sign, ...payloadWithoutSign } = body;
 
   if (!sign || typeof sign !== 'string') {
@@ -109,13 +152,21 @@ export async function verifyWebhookSignature(
     }
   }
 
-  const expectedSign = await generateSignature(payloadWithoutSign);
-
-  if (sign !== expectedSign) {
-    return { valid: false, error: 'Invalid signature' };
+  if (options?.apiSecret) {
+    const keyed = await generateKeyedSignature(payloadWithoutSign, options.apiSecret);
+    if (constantTimeEqual(sign, keyed)) {
+      return { valid: true, scheme: 'keyed' };
+    }
   }
 
-  return { valid: true };
+  if (!options?.requireSecret) {
+    const unkeyed = await generateSignature(payloadWithoutSign);
+    if (constantTimeEqual(sign, unkeyed)) {
+      return { valid: true, scheme: 'unkeyed' };
+    }
+  }
+
+  return { valid: false, error: 'Invalid signature' };
 }
 
 /**
@@ -179,6 +230,7 @@ export class HttpClient {
   private readonly apiSecret: string;
   private readonly timeout: number;
   private readonly headers: Record<string, string>;
+  private readonly signatureScheme: 'sha256' | 'hmac-sha256';
   private language?: string;
 
   constructor(config: TMSClientConfig) {
@@ -187,6 +239,7 @@ export class HttpClient {
     this.apiSecret = config.apiSecret;
     this.timeout = config.timeout ?? 30000;
     this.headers = config.headers ?? {};
+    this.signatureScheme = config.signatureScheme ?? 'sha256';
     this.language = config.language;
   }
 
@@ -210,7 +263,10 @@ export class HttpClient {
     };
     console.log('[TMS SDK] signRequest - apiKey:', this.apiKey);
     console.log('[TMS SDK] signRequest - body keys:', Object.keys(signedBody).sort().join(', '));
-    signedBody.sign = await generateSignature(signedBody, this.apiSecret);
+    signedBody.sign =
+      this.signatureScheme === 'hmac-sha256'
+        ? await generateKeyedSignature(signedBody, this.apiSecret)
+        : await generateSignature(signedBody, this.apiSecret);
     console.log('[TMS SDK] signRequest - final signed body:', JSON.stringify(signedBody, null, 2));
     return signedBody;
   }
@@ -225,6 +281,8 @@ export class HttpClient {
       body?: Record<string, unknown>;
       query?: Record<string, unknown>;
       sign?: boolean;
+      /** Extra headers for this request only; they win over the client-wide ones. */
+      headers?: Record<string, string>;
     }
   ): Promise<T> {
     const url = `${this.baseUrl}${path}${options?.query ? buildQueryString(options.query) : ''}`;
@@ -236,6 +294,7 @@ export class HttpClient {
       // headers still win, since they are spread last.
       ...(this.language ? { 'Accept-Language': this.language } : {}),
       ...this.headers,
+      ...options?.headers,
     };
 
     const fetchOptions: RequestInit = {
@@ -304,8 +363,12 @@ export class HttpClient {
   /**
    * POST request
    */
-  async post<T>(path: string, body?: Record<string, unknown>): Promise<T> {
-    return this.request<T>('POST', path, { body });
+  async post<T>(
+    path: string,
+    body?: Record<string, unknown>,
+    headers?: Record<string, string>,
+  ): Promise<T> {
+    return this.request<T>('POST', path, { body, headers });
   }
 
   /**

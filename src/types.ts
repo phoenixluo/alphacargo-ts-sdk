@@ -39,6 +39,27 @@ export interface Product {
   height?: number;
 }
 
+/**
+ * Cargo handling for load planning. Every field is optional; unset fields
+ * inherit from the waybill's product category (`load_defaults`), then from the
+ * default (upright, may turn, stackable).
+ */
+export interface LoadProperties {
+  /** `longship`: upright, lengthwise only; `rotatable`: upright, may turn; `tiltable`: any side up */
+  orientation?: 'longship' | 'rotatable' | 'tiltable';
+  /** Other cargo may be placed on top */
+  stackable?: boolean;
+  /** Nothing may be placed on top (overrides `stackable`) */
+  fragile?: boolean;
+  /** Must stand on the vehicle floor */
+  bottom_only?: boolean;
+  /** Most units in one stack (1–100) */
+  max_layers?: number;
+  /** Most weight that may rest on one unit, kg */
+  max_load_kg?: number;
+  geometry?: 'box' | 'cylinder';
+}
+
 export interface Parcel {
   outParcelNo: string;
   itemDesc: string;
@@ -55,6 +76,8 @@ export interface Parcel {
   piece_count?: number;
   productList: Product[];
   photos?: string[];
+  /** Cargo handling for load planning */
+  load_properties?: LoadProperties;
 }
 
 export interface CreateWaybillRequest {
@@ -336,14 +359,31 @@ export interface WaybillDetails {
   additional_services?: AdditionalService[];
 }
 
-export interface AddPackageRequest {
-  external_package_no: string;
+/** The parcel added to a waybill by {@link AddPackageRequest}. */
+export interface AddParcel {
+  /** External package number */
+  outParcelNo: string;
+  /** Item description; stored as the package's notes */
+  itemDesc: string;
+  itemValue?: number;
+  /** Weight in kg, per piece when `piece_count` > 1 */
   weight?: number;
-  width?: number;
   length?: number;
+  width?: number;
   height?: number;
-  notes?: string;
-  products?: Product[];
+  /** Number of identical pieces this parcel represents as one lot (default 1) */
+  piece_count?: number;
+  /** Cargo handling for load planning */
+  load_properties?: LoadProperties;
+  /** At least one product */
+  productList: Product[];
+  photos?: string[];
+  /** Package ids this package physically contains (consolidation) */
+  containedPackageIds?: string[];
+}
+
+export interface AddPackageRequest {
+  parcel: AddParcel;
 }
 
 export interface AddPackageResponse {
@@ -1774,6 +1814,8 @@ export interface ProductCategory {
   description: string | null;
   is_active: boolean;
   sort_order: number;
+  /** Default cargo handling for waybills in this category and its subcategories */
+  load_defaults: LoadProperties;
   metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
@@ -1791,6 +1833,8 @@ export interface CreateProductCategoryRequest {
   description?: string | null;
   is_active?: boolean;
   sort_order?: number;
+  /** Default cargo handling for load planning */
+  load_defaults?: LoadProperties;
 }
 
 export interface UpdateProductCategoryRequest {
@@ -1800,6 +1844,8 @@ export interface UpdateProductCategoryRequest {
   description?: string | null;
   is_active?: boolean;
   sort_order?: number;
+  /** Replaces the category's handling defaults */
+  load_defaults?: LoadProperties;
 }
 
 export interface ListProductCategoriesParams {
@@ -1857,23 +1903,25 @@ export interface QuoteAggregates {
 export type QuoteServiceType = 'ftl_transport' | 'ltl_transport';
 
 export interface CreateQuoteRequest {
-  /** Caller-supplied idempotency/correlation ID (echoed back in the response). */
-  request_id: string;
-  draft_order_id: string;
-  /** Draft order version (integer >= 0). */
-  draft_order_version: number;
+  /** Caller-supplied correlation ID (echoed back). Generated when omitted. */
+  request_id?: string;
+  /** Your own reference for the cargo being priced. Generated when omitted. */
+  draft_order_id?: string;
+  /** Draft order version (integer >= 0). Defaults to 1. */
+  draft_order_version?: number;
+  /** Geocoded server-side when `lat`/`lng` are omitted. */
   pickup: QuoteAddress;
+  /** Geocoded server-side when `lat`/`lng` are omitted. */
   delivery: QuoteAddress;
   /** Cargo items (min 1). */
   items: QuoteItem[];
-  aggregates: QuoteAggregates;
+  /** Shipment totals. Computed from `items` when omitted. */
+  aggregates?: QuoteAggregates;
   /** Defaults to "ftl_transport". */
   service_type?: QuoteServiceType;
   cargo_notes?: string | null;
   /** Add-on requests, each identified by `key`. */
   addons?: { key: string }[];
-  customer_chat?: { platform: 'line' | 'wechat'; user_id: string } | null;
-  customer?: { name?: string | null; phone?: string | null } | null;
   /** Min vehicle weight utilization, 0–1 (default 0). */
   min_weight_fullness?: number;
   /** Min vehicle volume utilization, 0–1 (default 0). */
@@ -1996,6 +2044,14 @@ export interface TMSClientConfig {
    * API secret for generating request signatures
    */
   apiSecret: string;
+  /**
+   * How requests are signed.
+   * - `'sha256'` (default, for now): SHA-256 of the canonical JSON. The secret is
+   *   not part of it — being phased out.
+   * - `'hmac-sha256'`: HMAC-SHA256 keyed with `apiSecret`. Requires a TMS that
+   *   accepts keyed signatures; it will become the default, then the only scheme.
+   */
+  signatureScheme?: 'sha256' | 'hmac-sha256';
 
   /**
    * Request timeout in milliseconds (default: 30000)

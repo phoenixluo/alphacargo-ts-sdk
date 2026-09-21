@@ -2,7 +2,7 @@
 export { TMSClient } from './client';
 
 // Utilities
-export { TMSApiError, generateSignature, generateNonce, getTimestamp, canonicalizeJson, verifyWebhookSignature } from './utils';
+export { TMSApiError, generateSignature, generateKeyedSignature, generateNonce, getTimestamp, canonicalizeJson, verifyWebhookSignature } from './utils';
 
 // Resources (for advanced usage)
 export {

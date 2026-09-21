@@ -4,10 +4,10 @@ import type { CreateQuoteRequest, CreateQuoteResponse } from '../types';
 /**
  * Quotes resource for the FTL/LTL shipping-quote flow.
  *
- * Only quote creation is exposed here: `POST /api/quote` uses signature
+ * Only quote creation is exposed here: `POST /api/quotes` uses signature
  * authentication (the API key), which is what this SDK is built around. The
- * downstream quote operations — `GET /api/quote/{id}`, `POST /api/quote/{id}/pay`,
- * `POST /api/quote/{id}/cancel`, and `GET /api/orders/{id}/tracking` — are
+ * downstream quote operations — `GET /api/quotes/{id}`, `POST /api/quotes/{id}/pay`,
+ * `POST /api/quotes/{id}/cancel`, and `GET /api/orders/{id}/tracking` — are
  * authenticated with the customer's sender-account session cookie, not an API
  * key, so they are not part of this server-to-server SDK.
  */
@@ -20,7 +20,12 @@ export class Quotes {
    * Selects a vehicle/pricing source for the shipment and persists a quotation,
    * returning the quote ID along with the resolved provider and vehicle.
    *
+   * A quote needs no owner. When you already know which sender account it is
+   * for, pass `senderAccountId` (sent as the `X-Sender-Account-Id` header); it
+   * must belong to your organization.
+   *
    * @param data - Quote request (cargo, addresses, aggregates)
+   * @param options - `senderAccountId`: the sender account that owns the quote
    * @returns The created quotation
    *
    * @example
@@ -44,10 +49,14 @@ export class Quotes {
    * console.log(quote.quotation_id, quote.provider, quote.vehicle);
    * ```
    */
-  async create(data: CreateQuoteRequest): Promise<CreateQuoteResponse> {
+  async create(
+    data: CreateQuoteRequest,
+    options?: { senderAccountId?: string },
+  ): Promise<CreateQuoteResponse> {
     return this.http.post<CreateQuoteResponse>(
-      '/quote',
+      '/quotes',
       data as unknown as Record<string, unknown>,
+      options?.senderAccountId ? { 'X-Sender-Account-Id': options.senderAccountId } : undefined,
     );
   }
 }

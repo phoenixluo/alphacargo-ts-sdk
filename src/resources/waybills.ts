@@ -311,9 +311,12 @@ export class Waybills {
    * @example
    * ```typescript
    * const pkg = await client.waybills.addPackage('TH24020001', {
-   *   external_package_no: 'PKG-002',
-   *   weight: 2.5,
-   *   products: [{ name: 'Keyboard', sku: 'SKU-002', quantity: 1 }]
+   *   parcel: {
+   *     outParcelNo: 'PKG-002',
+   *     itemDesc: 'Keyboards',
+   *     weight: 2.5,
+   *     productList: [{ name: 'Keyboard', sku: 'SKU-002', quantity: 1 }],
+   *   },
    * });
    * console.log(pkg.package_no); // 'TH24020001-002'
    * ```

@@ -341,8 +341,8 @@ interface AddParcel {
     piece_count?: number;
     /** Cargo handling for load planning */
     load_properties?: LoadProperties;
-    /** At least one product */
-    productList: Product[];
+    /** Itemised contents. May be empty or omitted (e.g. a box packed at the warehouse). */
+    productList?: Product[];
     photos?: string[];
     /** Package ids this package physically contains (consolidation) */
     containedPackageIds?: string[];
@@ -1772,12 +1772,17 @@ interface TMSClientConfig {
     apiSecret: string;
     /**
      * How requests are signed.
-     * - `'sha256'` (default, for now): SHA-256 of the canonical JSON. The secret is
-     *   not part of it — being phased out.
-     * - `'hmac-sha256'`: HMAC-SHA256 keyed with `apiSecret`. Requires a TMS that
-     *   accepts keyed signatures; it will become the default, then the only scheme.
+     * - `'hmac-sha256'` (default): HMAC-SHA256 keyed with `apiSecret`.
+     * - `'sha256'`: the old scheme — a bare SHA-256 of the canonical JSON, with no
+     *   secret in it. Only for a TMS that predates keyed signatures; a TMS running
+     *   with `API_SIGNATURE_REQUIRE_SECRET` rejects it.
      */
     signatureScheme?: 'sha256' | 'hmac-sha256';
+    /**
+     * Log each request's method, path and status. Off by default. Query strings,
+     * bodies and responses are never logged: a signed request is a credential.
+     */
+    debug?: boolean;
     /**
      * Request timeout in milliseconds (default: 30000)
      */
@@ -1809,18 +1814,19 @@ interface TMSError {
  */
 declare function canonicalizeJson(obj: unknown): string;
 /**
- * Generate SHA-256 signature for API requests using Web Crypto API.
- * Uses canonical JSON serialization of the payload (excluding the `sign` field)
- * to match the server-side signature verification.
+ * The OLD, unkeyed signature: a bare SHA-256 of the canonical JSON of the payload
+ * (excluding `sign`). The secret is not part of it — `_apiSecret` is ignored — so
+ * it proves only knowledge of the `api_key`. Kept for `signatureScheme: 'sha256'`
+ * and for verifying requests from a TMS that has not moved yet; use
+ * `generateKeyedSignature` for anything new.
  */
 declare function generateSignature(params: Record<string, unknown>, _apiSecret?: string): Promise<string>;
 /**
  * Generate the keyed signature: `HMAC-SHA256(apiSecret, canonicalJson(params
  * without sign))`, uppercase hex.
  *
- * `generateSignature` is a bare SHA-256 — the secret never enters it, so it
- * proves only knowledge of the `api_key`. This is its replacement. The TMS
- * accepts both while clients move over (`signatureScheme` in the client config).
+ * This is what the client sends by default. It replaces `generateSignature`, a
+ * bare SHA-256 that the secret never entered.
  */
 declare function generateKeyedSignature(params: Record<string, unknown>, apiSecret: string): Promise<string>;
 /**
@@ -1890,6 +1896,7 @@ declare class HttpClient {
     private readonly timeout;
     private readonly headers;
     private readonly signatureScheme;
+    private readonly debug;
     private language?;
     constructor(config: TMSClientConfig);
     /**

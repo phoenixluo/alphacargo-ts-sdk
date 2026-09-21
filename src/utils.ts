@@ -34,9 +34,11 @@ export function canonicalizeJson(obj: unknown): string {
 }
 
 /**
- * Generate SHA-256 signature for API requests using Web Crypto API.
- * Uses canonical JSON serialization of the payload (excluding the `sign` field)
- * to match the server-side signature verification.
+ * The OLD, unkeyed signature: a bare SHA-256 of the canonical JSON of the payload
+ * (excluding `sign`). The secret is not part of it — `_apiSecret` is ignored — so
+ * it proves only knowledge of the `api_key`. Kept for `signatureScheme: 'sha256'`
+ * and for verifying requests from a TMS that has not moved yet; use
+ * `generateKeyedSignature` for anything new.
  */
 export async function generateSignature(
   params: Record<string, unknown>,
@@ -48,17 +50,12 @@ export async function generateSignature(
   // Canonicalize the payload to produce a deterministic string
   const stringToSign = canonicalizeJson(paramsWithoutSign);
 
-  console.log('[TMS SDK] generateSignature - keys:', Object.keys(paramsWithoutSign).sort().join(', '));
-  console.log('[TMS SDK] generateSignature - stringToSign:', stringToSign);
-  console.log('[TMS SDK] generateSignature - apiSecret provided:', !!_apiSecret);
-
   // Generate SHA256 hash using Web Crypto API
   const encoder = new TextEncoder();
   const data = encoder.encode(stringToSign);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-  console.log('[TMS SDK] generateSignature - result:', signature);
   return signature;
 }
 
@@ -66,9 +63,8 @@ export async function generateSignature(
  * Generate the keyed signature: `HMAC-SHA256(apiSecret, canonicalJson(params
  * without sign))`, uppercase hex.
  *
- * `generateSignature` is a bare SHA-256 — the secret never enters it, so it
- * proves only knowledge of the `api_key`. This is its replacement. The TMS
- * accepts both while clients move over (`signatureScheme` in the client config).
+ * This is what the client sends by default. It replaces `generateSignature`, a
+ * bare SHA-256 that the secret never entered.
  */
 export async function generateKeyedSignature(
   params: Record<string, unknown>,
@@ -231,6 +227,7 @@ export class HttpClient {
   private readonly timeout: number;
   private readonly headers: Record<string, string>;
   private readonly signatureScheme: 'sha256' | 'hmac-sha256';
+  private readonly debug: boolean;
   private language?: string;
 
   constructor(config: TMSClientConfig) {
@@ -239,7 +236,8 @@ export class HttpClient {
     this.apiSecret = config.apiSecret;
     this.timeout = config.timeout ?? 30000;
     this.headers = config.headers ?? {};
-    this.signatureScheme = config.signatureScheme ?? 'sha256';
+    this.signatureScheme = config.signatureScheme ?? 'hmac-sha256';
+    this.debug = config.debug ?? false;
     this.language = config.language;
   }
 
@@ -261,13 +259,10 @@ export class HttpClient {
       api_key: this.apiKey,
       nonceStr: String(Date.now()),
     };
-    console.log('[TMS SDK] signRequest - apiKey:', this.apiKey);
-    console.log('[TMS SDK] signRequest - body keys:', Object.keys(signedBody).sort().join(', '));
     signedBody.sign =
       this.signatureScheme === 'hmac-sha256'
         ? await generateKeyedSignature(signedBody, this.apiSecret)
         : await generateSignature(signedBody, this.apiSecret);
-    console.log('[TMS SDK] signRequest - final signed body:', JSON.stringify(signedBody, null, 2));
     return signedBody;
   }
 
@@ -312,16 +307,15 @@ export class HttpClient {
       fetchOptions.body = JSON.stringify(await this.signRequest({}));
     }
 
-    console.log(`[TMS SDK] ${method} ${url}`);
-    if (fetchOptions.body) {
-      console.log('[TMS SDK] Request body:', fetchOptions.body);
-    }
 
     const response = await fetch(url, fetchOptions);
     const data = await response.json() as Record<string, unknown>;
 
-    console.log(`[TMS SDK] Response status: ${response.status}`);
-    console.log('[TMS SDK] Response body:', JSON.stringify(data, null, 2));
+    // Never log the URL's query string, the body or the response: a signed
+    // request is a credential for the length of its nonce window.
+    if (this.debug) {
+      console.log(`[TMS SDK] ${method} ${this.baseUrl}${path} → ${response.status}`);
+    }
 
     // Handle error responses
     if (!response.ok) {

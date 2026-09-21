@@ -81,16 +81,18 @@ console.log('Waybill created:', waybill.waybill_no);
 | `timeout` | number | No | Request timeout in ms (default: 30000) |
 | `language` | string | No | Preferred language for error messages (`en`, `th`, `zh`). Sent as `Accept-Language`. Defaults to English. |
 | `headers` | object | No | Custom headers to include in all requests |
-| `signatureScheme` | string | No | `'sha256'` (default, for now) or `'hmac-sha256'`. See **Request signing** |
+| `signatureScheme` | string | No | `'hmac-sha256'` (default) or `'sha256'`. See **Request signing** |
+| `debug` | boolean | No | Log each request's method, path and status. Never logs query strings, bodies or responses |
 
 ### Request signing
 
-Every request carries `api_key`, `nonceStr` and `sign`. With the default
-`'sha256'` scheme, `sign` is a plain hash of the request — **your `apiSecret` is
-not part of it**, so it only proves knowledge of the `apiKey`. Set
-`signatureScheme: 'hmac-sha256'` to sign with the secret
-(`HMAC-SHA256(apiSecret, canonicalJson)`); it needs a TMS that accepts keyed
-signatures, and will become the default and then the only scheme.
+Every request carries `api_key`, `nonceStr` and `sign`, where
+`sign = HMAC-SHA256(apiSecret, canonicalJson(request without sign))`.
+
+Before 2.7 the SDK sent a plain SHA-256 of the request instead — **the secret was
+not part of it**, so it proved only knowledge of the `apiKey`. That scheme is
+still available as `signatureScheme: 'sha256'` for a TMS that predates keyed
+signatures, and is rejected by one running with `API_SIGNATURE_REQUIRE_SECRET`.
 
 ### Verifying webhooks
 
@@ -99,7 +101,7 @@ import { verifyWebhookSignature } from '@alphacargo/tms-sdk';
 
 const result = await verifyWebhookSignature(req.body, {
   apiSecret: process.env.TMS_API_SECRET, // secret of the api_key in the body
-  // requireSecret: true,                // once the TMS signs with the secret
+  requireSecret: true,                   // reject the old unkeyed signature
 });
 if (!result.valid) return res.status(401).json({ error: result.error });
 // result.scheme is 'keyed' or 'unkeyed'

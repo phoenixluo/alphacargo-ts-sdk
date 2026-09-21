@@ -375,8 +375,8 @@ export interface AddParcel {
   piece_count?: number;
   /** Cargo handling for load planning */
   load_properties?: LoadProperties;
-  /** At least one product */
-  productList: Product[];
+  /** Itemised contents. May be empty or omitted (e.g. a box packed at the warehouse). */
+  productList?: Product[];
   photos?: string[];
   /** Package ids this package physically contains (consolidation) */
   containedPackageIds?: string[];
@@ -2046,12 +2046,17 @@ export interface TMSClientConfig {
   apiSecret: string;
   /**
    * How requests are signed.
-   * - `'sha256'` (default, for now): SHA-256 of the canonical JSON. The secret is
-   *   not part of it — being phased out.
-   * - `'hmac-sha256'`: HMAC-SHA256 keyed with `apiSecret`. Requires a TMS that
-   *   accepts keyed signatures; it will become the default, then the only scheme.
+   * - `'hmac-sha256'` (default): HMAC-SHA256 keyed with `apiSecret`.
+   * - `'sha256'`: the old scheme — a bare SHA-256 of the canonical JSON, with no
+   *   secret in it. Only for a TMS that predates keyed signatures; a TMS running
+   *   with `API_SIGNATURE_REQUIRE_SECRET` rejects it.
    */
   signatureScheme?: 'sha256' | 'hmac-sha256';
+  /**
+   * Log each request's method, path and status. Off by default. Query strings,
+   * bodies and responses are never logged: a signed request is a credential.
+   */
+  debug?: boolean;
 
   /**
    * Request timeout in milliseconds (default: 30000)
